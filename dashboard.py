@@ -53,47 +53,63 @@ def main():
 
         # --- Filtros en la Barra Lateral ---
         st.sidebar.header("Filtros de Cartera")
+
+        # El filtro de Empresa no cambia
         empresa = st.sidebar.multiselect(
             "Empresa:",
             options=sorted(df_cartera["Empresa"].unique()),
             default=sorted(df_cartera["Empresa"].unique()),
         )
 
-        # --- Filtros Anidados (REGIONAL -> CIUDAD -> VENDEDOR) ---
-        lista_regionales = ['Todas'] + sorted(df_cartera["Regional_Venta"].unique())
-        regional_seleccionada = st.sidebar.selectbox("Regional:", options=lista_regionales)
+        # --- FILTROS MODIFICADOS ---
+        # 1. Regional ahora es de selección múltiple
+        regionales_disponibles = sorted(df_cartera["Regional_Venta"].unique())
+        regionales_seleccionadas = st.sidebar.multiselect(
+            "Regional:",
+            options=regionales_disponibles,
+            default=regionales_disponibles
+        )
 
-        df_filtrado_regional = df_cartera[df_cartera["Regional_Venta"] == regional_seleccionada] if regional_seleccionada != "Todas" else df_cartera
-
-        ciudades_disponibles = sorted(df_filtrado_regional["Nombre_Ciudad"].unique())
-        ciudad_seleccionada = st.sidebar.multiselect("Ciudad:", options=ciudades_disponibles, default=ciudades_disponibles)
+        # 2. Se eliminan Ciudad/Vendedor y se añade Gestor
+        gestores_disponibles = sorted(df_cartera["Gestor"].unique())
+        gestores_seleccionados = st.sidebar.multiselect(
+            "Gestor:",
+            options=gestores_disponibles,
+            default=gestores_disponibles
+        )
         
-        df_filtrado_ciudad = df_filtrado_regional[df_filtrado_regional["Nombre_Ciudad"].isin(ciudad_seleccionada)]
+        # 3. Rodamiento ahora es de selección múltiple y sin 'SIN INFO'
+        opciones_rodamiento = sorted([
+            r for r in df_cartera["Rodamiento"].unique() if r != 'SIN INFO' and pd.notna(r)
+        ])
+        rodamiento_seleccionado = st.sidebar.multiselect(
+            "Rodamiento:",
+            options=opciones_rodamiento,
+            default=opciones_rodamiento
+        )
 
-        vendedores_disponibles = sorted(df_filtrado_ciudad["Nombre_Vendedor"].unique())
-        vendedor_seleccionado = st.sidebar.multiselect("Vendedor:", options=vendedores_disponibles, default=vendedores_disponibles)
+        # El filtro de Novedades no cambia
+        filtro_novedades = st.sidebar.radio(
+            "Novedades:",
+            ("Todos", "Con Novedades", "Sin Novedades")
+        )
 
-        # --- Filtros Adicionales ---
-        filtro_novedades = st.sidebar.radio("Novedades:", ("Todos", "Con Novedades", "Sin Novedades"))
-        
-        opciones_rodamiento = ['Todos'] + sorted(df_cartera["Rodamiento"].unique())
-        filtro_rodamiento = st.sidebar.selectbox("Rodamiento:", options=opciones_rodamiento)
-
-        # --- Lógica de Filtrado Final ---
+        # --- Lógica de Filtrado Final (ACTUALIZADA) ---
+        # Se aplican todos los filtros de selección múltiple a la vez
         df_cartera_filtrada = df_cartera[
             (df_cartera["Empresa"].isin(empresa)) &
-            (df_cartera["Nombre_Ciudad"].isin(ciudad_seleccionada)) &
-            (df_cartera["Nombre_Vendedor"].isin(vendedor_seleccionado))
-        ]
-        if regional_seleccionada != "Todas":
-            df_cartera_filtrada = df_cartera_filtrada[df_cartera_filtrada["Regional_Venta"] == regional_seleccionada]
+            (df_cartera["Regional_Venta"].isin(regionales_seleccionadas)) &
+            (df_cartera["Gestor"].isin(gestores_seleccionados)) &
+            (df_cartera["Rodamiento"].isin(rodamiento_seleccionado))
+        ].copy() # .copy() para evitar advertencias de pandas
+
+        # Se aplica el filtro de Novedades por separado
         if filtro_novedades == "Con Novedades":
             df_cartera_filtrada = df_cartera_filtrada[df_cartera_filtrada["Cantidad_Novedades"] > 0]
         elif filtro_novedades == "Sin Novedades":
             df_cartera_filtrada = df_cartera_filtrada[df_cartera_filtrada["Cantidad_Novedades"] == 0]
-        if filtro_rodamiento != "Todos":
-            df_cartera_filtrada = df_cartera_filtrada[df_cartera_filtrada["Rodamiento"] == filtro_rodamiento]
         
+        # Se actualiza el dataframe de novedades basado en la cartera ya filtrada
         cedulas_filtradas = df_cartera_filtrada["Cedula_Cliente"].unique()
         df_novedades_filtrada = df_novedades[df_novedades["Cedula_Cliente"].isin(cedulas_filtradas)]
 
@@ -101,7 +117,7 @@ def main():
         
         tab1, tab2, tab3 = st.tabs([
             "📈 Métricas Principales", 
-            "🔄 Análisis de Rodamiento", 
+            "🔄 Análisis de Rodamiento y Recaudos", 
             "📄 Datos Detallados"
         ])
 
@@ -134,24 +150,17 @@ def main():
         # --- PESTAÑA 2: ANÁLISIS DE RODAMIENTO ---
         with tab2:
             st.header("Análisis de Rodamiento de Cartera")
-            st.header("Análisis de Rodamiento")
-            col_r1, col_r2, col_r3, col_r4, col_r5 = st.columns(5)
-        
-            # 1. Obtenemos el conteo para cada categoría
-            conteo_rodamiento = df_cartera_filtrada["Rodamiento"].value_counts()
             
-            # 2. Obtenemos el TOTAL de créditos que se están mostrando (después de filtros)
+            # --- KPIs de Rodamiento ---
+            col_r1, col_r2, col_r3, col_r4, col_r5 = st.columns(5)
+            conteo_rodamiento = df_cartera_filtrada["Rodamiento"].value_counts()
             total_creditos_filtrados = len(df_cartera_filtrada)
 
-            # 3. Función auxiliar para calcular y formatear el texto
             def format_metric_value(key):
                 count = conteo_rodamiento.get(key, 0)
-                # Evitamos errores si el total es 0
                 percentage = (count / total_creditos_filtrados * 100) if total_creditos_filtrados > 0 else 0
-                # Formateamos el texto como "1,234 (15%)"
                 return f"{count:,} ({percentage:.0f}%)"
 
-            # 4. Asignamos los valores formateados a cada métrica
             col_r1.metric("✅ Pagaron Total", format_metric_value('PAGO TOTAL'))
             col_r2.metric("👎 Empeoraron", format_metric_value('EMPEORO'))
             col_r3.metric("🎉 Normalizaron", format_metric_value('NORMALIZO'))
@@ -159,55 +168,85 @@ def main():
             col_r5.metric("↔️ Se Mantuvieron", format_metric_value('SE MANTIENE'))
 
             st.markdown("---")
-            st.header("Visualizaciones de Rodamiento")
-            
-            # Gráfico de Barras Apiladas de Rodamiento
-            if not df_cartera_filtrada.empty and 'Rodamiento' in df_cartera_filtrada.columns:
 
-            # --- 1. PREPARACIÓN DE DATOS (MODIFICADO) ---
+            st.header("Análisis de Recaudos")
+            col_rec1, col_rec2 = st.columns(2)
+            total_recaudo = df_cartera_filtrada['Total_Recaudo'].sum()
+            recaudo_meta = df_cartera_filtrada['Recaudo_Meta'].sum()
             
-            # a) Filtrar para ignorar la categoría 'SIN INFO' del análisis
+            col_rec1.metric("💰 Total Recaudado", f"${total_recaudo:,.0f}")
+            col_rec2.metric("🎯 Recaudo de Meta", f"${recaudo_meta:,.0f}")
+
+            st.markdown("---")
+
+
+            st.header("Visualizaciones de Rodamiento y Recaudo")
+            
+            # --- GRÁFICO DE BARRAS APILADAS CON DIAGNÓSTICOS ---
+            
+            # 1. Verificación principal: ¿Hay datos después de aplicar los filtros de la sidebar?
+            if not df_cartera_filtrada.empty and 'Rodamiento' in df_cartera_filtrada.columns:
+                
                 df_para_grafico = df_cartera_filtrada[df_cartera_filtrada['Rodamiento'] != 'SIN INFO'].copy()
 
-                # b) Crear la tabla pivote con los datos ya filtrados
-                rodamiento_pivot = pd.crosstab(
-                    index=df_para_grafico['Franja_Mora'], 
-                    columns=df_para_grafico['Rodamiento'], 
-                    normalize='index'
-                ) * 100
-                
-                # c) Definir y aplicar el orden correcto para las franjas (eje X)
-                orden_franjas = ['AL DIA', '1 A 30', '31 A 90', '91 A 180', '181 A 360']
-                # Reordenamos el índice de la tabla pivote según nuestra lista
-                rodamiento_pivot = rodamiento_pivot.reindex(
-                    [franja for franja in orden_franjas if franja in rodamiento_pivot.index]
-                )
+                # 2. Verificación intermedia: ¿Quedaron datos después de quitar 'SIN INFO'?
+                if not df_para_grafico.empty:
+                    # Preparación de datos (la lógica es la misma que ya teníamos)
+                    df_agrupado = df_para_grafico.groupby(['Franja_Mora', 'Rodamiento']).size().reset_index(name='count')
+                    total_por_franja = df_agrupado.groupby('Franja_Mora')['count'].sum().reset_index(name='total')
+                    df_final_grafico = pd.merge(df_agrupado, total_por_franja, on='Franja_Mora')
+                    df_final_grafico['percentage'] = (df_final_grafico['count'] / df_final_grafico['total']) * 100
+                    
+                    orden_franjas = ['AL DIA', '1 A 30', '31 A 90', '91 A 180', '181 A 360']
+                    df_final_grafico['Franja_Mora'] = pd.Categorical(df_final_grafico['Franja_Mora'], categories=orden_franjas, ordered=True)
+                    df_final_grafico.sort_values('Franja_Mora', inplace=True)
+                    
+                    # 3. Verificación final: ¿La tabla para el gráfico tiene datos?
+                    if not df_final_grafico.empty:
+                        # Creación del Gráfico
+                        fig_rodamiento = px.bar(
+                            df_final_grafico,
+                            x="Franja_Mora", y="percentage", color="Rodamiento",
+                            title="<b>¿Qué pasó con los clientes de cada franja de mora?</b>",
+                            labels={'percentage': 'Porcentaje de Clientes (%)', 'Franja_Mora': 'Franja de Mora Inicial'},
+                            color_discrete_map={
+                                "MEJORO": "green", "NORMALIZO": "blue", "PAGO TOTAL": "skyblue",
+                                "SE MANTIENE": "gray", "EMPEORO": "red"
+                            },
+                            template="plotly_white", custom_data=['count']
+                        )
+                        fig_rodamiento.update_traces(hovertemplate="<b>%{x}</b><br>Rodamiento: %{fullData.name}<br>Porcentaje: %{y:.2f}%<br><b>Total Créditos: %{customdata[0]:,}</b><extra></extra>")
+                        fig_rodamiento.update_layout(yaxis_title="Porcentaje de Clientes (%)")
+                        st.plotly_chart(fig_rodamiento, use_container_width=True)
+                    else:
+                        st.info("No se encontraron datos de rodamiento para graficar con la selección actual.")
 
-                # d) Reordenar las columnas (leyenda) para una mejor visualización
-                column_order = ['MEJORO', 'NORMALIZO', 'PAGO TOTAL', 'SE MANTIENE', 'EMPEORO']
-                rodamiento_pivot = rodamiento_pivot.reindex(
-                    columns=[col for col in column_order if col in rodamiento_pivot.columns]
-                )
-
-                # --- 2. CREACIÓN DEL GRÁFICO (La llamada no cambia) ---
-                fig_rodamiento = px.bar(
-                    rodamiento_pivot,
-                    x=rodamiento_pivot.index,
-                    y=rodamiento_pivot.columns,
-                    title="<b>¿Qué pasó con los clientes de cada franja de mora?</b>",
-                    labels={'value': 'Porcentaje de Clientes (%)', 'Franja_Mora': 'Franja de Mora Inicial'},
-                    color_discrete_map={
-                        "MEJORO": "green",
-                        "NORMALIZO": "blue",
-                        "PAGO TOTAL": "skyblue",
-                        "SE MANTIENE": "gray",
-                        "EMPEORO": "red"
-                    },
-                    template="plotly_white"
+                else:
+                    st.info("No hay datos de rodamiento (ej. MEJORO, EMPEORO) para mostrar con los filtros actuales. Solo se encontraron categorías no relevantes como 'SIN INFO'.")
+            else:
+                st.warning("No hay datos de cartera para mostrar en los gráficos con los filtros seleccionados en la barra lateral.")
+            
+            # --- NUEVO GRÁFICO: Top 10 Gestores por Total Recaudado ---
+            if not df_cartera_filtrada.empty:
+                recaudo_por_gestor = (
+                    df_cartera_filtrada.groupby("Gestor")['Total_Recaudo']
+                    .sum()
+                    .reset_index()
+                    .sort_values(by="Total_Recaudo", ascending=False)
+                    .head(10) # Mostramos el Top 10
                 )
                 
-                fig_rodamiento.update_layout(yaxis_title="Porcentaje de Clientes (%)")
-                st.plotly_chart(fig_rodamiento, use_container_width=True)
+                fig_recaudo_gestor = px.bar(
+                    recaudo_por_gestor,
+                    x="Gestor",
+                    y="Total_Recaudo",
+                    title="<b>Top 10 Gestores por Total Recaudado</b>",
+                    labels={'Total_Recaudo': 'Recaudo Total ($)', 'Gestor': 'Gestor'},
+                    template="plotly_white",
+                    text_auto='.2s' # Formato de texto sobre las barras (ej. 1.2M)
+                )
+                fig_recaudo_gestor.update_traces(textposition='outside')
+                st.plotly_chart(fig_recaudo_gestor, use_container_width=True)
 
         # --- PESTAÑA 3: DATOS DETALLADOS ---
         with tab3:

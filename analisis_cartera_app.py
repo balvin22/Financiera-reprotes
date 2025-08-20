@@ -1,5 +1,3 @@
-# analisis_cartera_app.py (Versión 4.1)
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px

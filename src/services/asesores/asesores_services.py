@@ -147,15 +147,28 @@ class LoaderService:
             return False
 
         # --- PASO 4: GUARDAR EL REPORTE CON MÚLTIPLES HOJAS ---
-        print("\n--- Guardando el Reporte Final con 4 Hojas ---")
+        print("\n--- Guardando el Reporte Final con 3 Hojas ---")
         try:
             with pd.ExcelWriter(path_salida, engine='openpyxl') as writer:
-                reporte_resumen.to_excel(writer, sheet_name='Resumen Regional', index=False)
+                # 1. Escribimos las otras hojas que no cambian
                 reporte_corretaje.to_excel(writer, sheet_name='corretaje', index=False)
-                reporte_asesores.to_excel(writer, sheet_name='asesores', index=False)
                 reporte_sin_registrar.to_excel(writer, sheet_name='sin registrar', index=False)
+                
+                # 2. Escribimos la tabla principal en la hoja 'asesores'
+                reporte_asesores.to_excel(writer, sheet_name='asesores', index=False)
+                columna_inicio_resumen = reporte_asesores.shape[1] + 2
+                
+              
+                reporte_resumen.to_excel(
+                    writer,
+                    sheet_name='asesores',  # <-- MISMA HOJA
+                    index=False,
+                    startrow=0,  # Empezar en la primera fila
+                    startcol=columna_inicio_resumen  # Empezar después de las 2 columnas vacías
+                )
             
-            print(f"✅ Reporte con 4 hojas generado exitosamente en: '{path_salida}'")
+            print(f"✅ Reporte con 3 hojas generado exitosamente en: '{path_salida}'")
+            print("   (La hoja 'asesores' ahora contiene el resumen regional a la derecha).")
             return True
             
         except Exception as e:

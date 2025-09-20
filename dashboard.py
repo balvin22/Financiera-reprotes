@@ -10,6 +10,7 @@ def load_data(uploaded_file):
     """
     print("Cargando y procesando archivo...")
     df_cartera = pd.read_excel(uploaded_file, sheet_name="Analisis_de_Cartera")
+    # df_franjas = pd.read_execel(uploaded_file, sheet_name="Reporte_Franjas")
     df_novedades = pd.read_excel(uploaded_file, sheet_name="Detalle_Novedades")
 
     # --- Limpieza y conversión de tipos de datos ---
@@ -20,7 +21,7 @@ def load_data(uploaded_file):
     if "Fecha_Novedad" in df_novedades.columns:
         df_novedades["Fecha_Novedad"] = pd.to_datetime(df_novedades["Fecha_Novedad"], errors="coerce").dt.date
 
-    for col in ["Empresa", "Regional_Venta", "Nombre_Ciudad", "Nombre_Vendedor", "Franja_Mora", "Rodamiento"]:
+    for col in ["Empresa", "Regional_Venta", "Nombre_Ciudad", "Nombre_Vendedor", "Franja_Meta", "Rodamiento"]:
         if col in df_cartera.columns:
             df_cartera[col] = df_cartera[col].astype(str)
 
@@ -69,6 +70,18 @@ def main():
             options=regionales_disponibles,
             default=regionales_disponibles
         )
+        
+        # <-- NUEVO: Filtro para Franja de Mora -->
+        # Se define un orden lógico para las franjas para que aparezcan ordenadas en el filtro
+        orden_franjas = ['AL DIA', '1 A 30', '31 A 90', '91 A 180', '181 A 360', 'MAS DE 360']
+        # Se asegura que solo las franjas existentes en los datos se muestren como opciones
+        opciones_franja = [f for f in orden_franjas if f in df_cartera["Franja_Meta"].unique()]
+        
+        franjas_seleccionadas = st.sidebar.multiselect(
+            "Franja de Meta:",
+            options=opciones_franja,
+            default=opciones_franja
+        )
 
         # 2. Se eliminan Ciudad/Vendedor y se añade Gestor
         gestores_disponibles = sorted(df_cartera["Gestor"].unique())
@@ -99,6 +112,7 @@ def main():
         df_cartera_filtrada = df_cartera[
             (df_cartera["Empresa"].isin(empresa)) &
             (df_cartera["Regional_Venta"].isin(regionales_seleccionadas)) &
+            (df_cartera["Franja_Meta"].isin(franjas_seleccionadas)) &
             (df_cartera["Gestor"].isin(gestores_seleccionados)) &
             (df_cartera["Rodamiento"].isin(rodamiento_seleccionado))
         ].copy() # .copy() para evitar advertencias de pandas
@@ -132,18 +146,44 @@ def main():
             st.markdown("---")
             st.header("Visualizaciones Generales")
             
-            col_g1, col_g2 = st.columns(2)
+           # <-- MODIFICADO: Nuevo gráfico de barras apiladas -->
+            st.header("Distribución de Cuentas por Regional y Franja de Mora")
+
             if not df_cartera_filtrada.empty:
-                # Gráfico de Franja de Mora
-                franja_mora = df_cartera_filtrada["Franja_Mora"].value_counts().reset_index()
-                fig_franja_mora = px.pie(franja_mora, values="count", names="Franja_Mora", title="<b>Distribución por Franja de Mora</b>", hole=0.4)
-                col_g1.plotly_chart(fig_franja_mora, use_container_width=True)
+                # 1. Agrupar los datos para contar créditos por regional y franja
+                df_grafico = df_cartera_filtrada.groupby(['Regional_Venta', 'Franja_Meta']).size().reset_index(name='count')
                 
-                # Gráfico de Tipos de Novedades
-                if not df_novedades_filtrada.empty:
-                    tipos_novedad = df_novedades_filtrada["Tipo_Novedad"].value_counts().reset_index()
-                    fig_novedades = px.bar(tipos_novedad, x="Tipo_Novedad", y="count", title="<b>Top Tipos de Novedades</b>")
-                    col_g2.plotly_chart(fig_novedades, use_container_width=True)
+                # 2. Asegurar el orden de las franjas en el gráfico
+                df_grafico['Franja_Meta'] = pd.Categorical(df_grafico['Franja_Meta'], categories=orden_franjas, ordered=True)
+                df_grafico = df_grafico.sort_values('Franja_Meta')
+
+                # 3. Crear el gráfico de barras apiladas
+                fig_regional_franjas = px.bar(
+                    df_grafico,
+                    x='Regional_Venta',
+                    y='count',
+                    color='Franja_Meta',
+                    title="<b>Total de Cuentas por Regional de Venta</b>",
+                    labels={
+                        'count': 'Cantidad de Cuentas (Créditos)',
+                        'Regional_Venta': 'Regional de Venta',
+                        'Franja_Meta': 'Franja de Meta'
+                    },
+                    template='plotly_white',
+                    text_auto=True # Muestra el valor en cada segmento de la barra
+                )
+                
+                fig_regional_franjas.update_layout(
+                    xaxis_title="Regional de Venta",
+                    yaxis_title="Cantidad de Cuentas",
+                    legend_title="Franja de Mora"
+                )
+                
+                # 4. Mostrar el gráfico
+                st.plotly_chart(fig_regional_franjas, use_container_width=True)
+            else:
+                st.warning("No hay datos para mostrar con los filtros seleccionados.")
+
             
             # ... (Aquí puedes poner otros gráficos generales como el de desembolsos en el tiempo) ...
 
@@ -192,23 +232,23 @@ def main():
                 # 2. Verificación intermedia: ¿Quedaron datos después de quitar 'SIN INFO'?
                 if not df_para_grafico.empty:
                     # Preparación de datos (la lógica es la misma que ya teníamos)
-                    df_agrupado = df_para_grafico.groupby(['Franja_Mora', 'Rodamiento']).size().reset_index(name='count')
-                    total_por_franja = df_agrupado.groupby('Franja_Mora')['count'].sum().reset_index(name='total')
-                    df_final_grafico = pd.merge(df_agrupado, total_por_franja, on='Franja_Mora')
+                    df_agrupado = df_para_grafico.groupby(['Franja_Meta', 'Rodamiento']).size().reset_index(name='count')
+                    total_por_franja = df_agrupado.groupby('Franja_Meta')['count'].sum().reset_index(name='total')
+                    df_final_grafico = pd.merge(df_agrupado, total_por_franja, on='Franja_Meta')
                     df_final_grafico['percentage'] = (df_final_grafico['count'] / df_final_grafico['total']) * 100
                     
                     orden_franjas = ['AL DIA', '1 A 30', '31 A 90', '91 A 180', '181 A 360']
-                    df_final_grafico['Franja_Mora'] = pd.Categorical(df_final_grafico['Franja_Mora'], categories=orden_franjas, ordered=True)
-                    df_final_grafico.sort_values('Franja_Mora', inplace=True)
+                    df_final_grafico['Franja_Meta'] = pd.Categorical(df_final_grafico['Franja_Meta'], categories=orden_franjas, ordered=True)
+                    df_final_grafico.sort_values('Franja_Meta', inplace=True)
                     
                     # 3. Verificación final: ¿La tabla para el gráfico tiene datos?
                     if not df_final_grafico.empty:
                         # Creación del Gráfico
                         fig_rodamiento = px.bar(
                             df_final_grafico,
-                            x="Franja_Mora", y="percentage", color="Rodamiento",
+                            x="Franja_Meta", y="percentage", color="Rodamiento",
                             title="<b>¿Qué pasó con los clientes de cada franja de mora?</b>",
-                            labels={'percentage': 'Porcentaje de Clientes (%)', 'Franja_Mora': 'Franja de Mora Inicial'},
+                            labels={'percentage': 'Porcentaje de Clientes (%)', 'Franja_Meta': 'Franja de Mora Inicial'},
                             color_discrete_map={
                                 "MEJORO": "green", "NORMALIZO": "blue", "PAGO TOTAL": "skyblue",
                                 "SE MANTIENE": "gray", "EMPEORO": "red"
@@ -259,8 +299,8 @@ def main():
             # Define las columnas que quieres mostrar por defecto
             columnas_por_defecto = [
                 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Empresa', 
-                'Saldo_Capital', 'Dias_Atraso', 'Franja_Mora', 'Rodamiento', 
-                'Franja_Mora_Final', 'Cantidad_Novedades', 'Fecha_Ultima_Novedad'
+                'Saldo_Capital', 'Dias_Atraso', 'Franja_Meta', 'Rodamiento', 
+                'Franja_Meta_Final', 'Cantidad_Novedades', 'Fecha_Ultima_Novedad'
             ]
             
             columnas_seleccionadas = st.multiselect(

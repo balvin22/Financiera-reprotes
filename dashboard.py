@@ -1,4 +1,5 @@
 import streamlit as st
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go # Necesario para el gráfico Sankey
@@ -146,46 +147,77 @@ def main():
             st.markdown("---")
             st.header("Visualizaciones Generales")
             
-           # <-- MODIFICADO: Nuevo gráfico de barras apiladas -->
-            st.header("Distribución de Cuentas por Regional y Franja de Mora")
+            # <-- MODIFICADO: Se crean dos columnas para los gráficos
+        col_g1, col_g2 = st.columns(2)
 
+        # Gráfico 1: Por Regional de Venta (código existente)
+        with col_g1:
+            st.header("Cuentas por Regional de Venta")
             if not df_cartera_filtrada.empty:
-                # 1. Agrupar los datos para contar créditos por regional y franja
                 df_grafico = df_cartera_filtrada.groupby(['Regional_Venta', 'Franja_Meta']).size().reset_index(name='count')
-                
-                # 2. Asegurar el orden de las franjas en el gráfico
                 df_grafico['Franja_Meta'] = pd.Categorical(df_grafico['Franja_Meta'], categories=orden_franjas, ordered=True)
                 df_grafico = df_grafico.sort_values('Franja_Meta')
 
-                # 3. Crear el gráfico de barras apiladas
                 fig_regional_franjas = px.bar(
-                    df_grafico,
-                    x='Regional_Venta',
-                    y='count',
-                    color='Franja_Meta',
-                    title="<b>Total de Cuentas por Regional de Venta</b>",
-                    labels={
-                        'count': 'Cantidad de Cuentas (Créditos)',
-                        'Regional_Venta': 'Regional de Venta',
-                        'Franja_Meta': 'Franja de Meta'
-                    },
-                    template='plotly_white',
-                    text_auto=True # Muestra el valor en cada segmento de la barra
+                    df_grafico, x='Regional_Venta', y='count', color='Franja_Meta',
+                    title="<b>Total de Cuentas por Regional</b>",
+                    labels={'count': 'Cantidad de Cuentas','Regional_Venta': 'Regional de Venta','Franja_Meta': 'Franja de Meta'},
+                    template='plotly_white', text_auto=True
                 )
-                
-                fig_regional_franjas.update_layout(
-                    xaxis_title="Regional de Venta",
-                    yaxis_title="Cantidad de Cuentas",
-                    legend_title="Franja de Mora"
-                )
-                
-                # 4. Mostrar el gráfico
+                fig_regional_franjas.update_layout(yaxis_title="Cantidad de Cuentas")
                 st.plotly_chart(fig_regional_franjas, use_container_width=True)
             else:
-                st.warning("No hay datos para mostrar con los filtros seleccionados.")
+                st.warning("No hay datos para mostrar.")
+
+        # <-- NUEVO: Gráfico 2: Por Regional/Zona de Cobro
+        with col_g2:
+            st.header("Cuentas por Grupo de Cobro")
+            if not df_cartera_filtrada.empty and 'Regional_Cobro' in df_cartera_filtrada.columns and 'Zona_Cobro' in df_cartera_filtrada.columns:
+                
+                # 1. Crear una copia para no alterar el dataframe original
+                df_para_grafico_2 = df_cartera_filtrada.copy()
+
+                # 2. Definir el mapeo para 'Zona_Cobro'
+                zona_cobro_map = {
+                    'ZCN': 'CASA COBRANZA',
+                    '1AB': 'ABOGADO',
+                    'CC01': 'CASTIGO',
+                    '1CE': 'OTROS CASOS',
+                    'CEC': 'OTROS CASOS'
+                }
+                
+                # 3. Mapear los valores de 'Zona_Cobro'
+                mapped_zonas = df_para_grafico_2['Zona_Cobro'].map(zona_cobro_map)
+
+                # 4. Crear la nueva columna condicional para el eje X
+                # Reemplaza valores 'nan' o vacíos en 'Regional_Cobro' con los valores mapeados
+                df_para_grafico_2['Regional_Cobro'] = df_para_grafico_2['Regional_Cobro'].replace('nan', np.nan)
+                df_para_grafico_2['Eje_X_Cobro'] = df_para_grafico_2['Regional_Cobro'].fillna(mapped_zonas)
+                
+                # 5. Eliminar filas donde el nuevo eje X siga siendo nulo (si ambos campos estaban vacíos)
+                df_para_grafico_2.dropna(subset=['Eje_X_Cobro'], inplace=True)
+
+                # 6. Agrupar los datos para el nuevo gráfico
+                df_grafico_2 = df_para_grafico_2.groupby(['Eje_X_Cobro', 'Franja_Meta']).size().reset_index(name='count')
+                df_grafico_2['Franja_Meta'] = pd.Categorical(df_grafico_2['Franja_Meta'], categories=orden_franjas, ordered=True)
+                df_grafico_2 = df_grafico_2.sort_values('Franja_Meta')
+
+                # 7. Crear y mostrar el gráfico
+                if not df_grafico_2.empty:
+                    fig_cobro = px.bar(
+                        df_grafico_2, x='Eje_X_Cobro', y='count', color='Franja_Meta',
+                        title="<b>Total de Cuentas por Grupo</b>",
+                        labels={'count': 'Cantidad de Cuentas','Eje_X_Cobro': 'Grupo de Cobro','Franja_Meta': 'Franja de Meta'},
+                        template='plotly_white', text_auto=True
+                    )
+                    fig_cobro.update_layout(yaxis_title="Cantidad de Cuentas")
+                    st.plotly_chart(fig_cobro, use_container_width=True)
+                else:
+                    st.info("No hay datos de cobro para graficar con la selección actual.")
+            else:
+                st.info("Faltan las columnas 'Regional_Cobro' o 'Zona_Cobro' para este gráfico.")
 
             
-            # ... (Aquí puedes poner otros gráficos generales como el de desembolsos en el tiempo) ...
 
         # --- PESTAÑA 2: ANÁLISIS DE RODAMIENTO ---
         with tab2:

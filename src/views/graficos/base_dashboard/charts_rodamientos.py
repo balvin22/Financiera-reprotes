@@ -1,45 +1,7 @@
-import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
-import pandas as pd
-import numpy as np
-from config import ORDEN_FRANJAS
 
 COLOR_TEXTO = '#EAEAEA'
-
-# --- FUNCIONES DE PREPARACIÓN DE DATOS (CACHEADAS) ---
-
-@st.cache_data
-def prepare_donut_data(df):
-    """Calcula y cachea los datos para el gráfico de dona."""
-    if df.empty or 'Total_Recaudo' not in df.columns:
-        return None
-    df['Estado_Pago'] = np.where(df['Total_Recaudo'] > 50000, 'PAGO', 'SIN PAGO')
-    return df['Estado_Pago'].value_counts()
-
-@st.cache_data
-def prepare_sunburst_data(df_cartera, df_novedades):
-    """Calcula y cachea los datos para los gráficos de sol (sunburst)."""
-    if df_cartera.empty:
-        return None, None
-    
-    df_cartera['Estado_Gestion'] = np.where(df_cartera['Cantidad_Novedades'] > 0, 'CON GESTIÓN', 'SIN GESTIÓN')
-    
-    # Esta es la operación más costosa que vamos a cachear
-    cargos_por_cliente = df_novedades.drop_duplicates(subset=['Cedula_Cliente'])[['Cedula_Cliente', 'Cargo_Usuario']]
-    df_merged = pd.merge(df_cartera, cargos_por_cliente, on='Cedula_Cliente', how='left')
-    df_merged['Cargo_Usuario'] = df_merged['Cargo_Usuario'].fillna('')
-    
-    grouped = df_merged.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
-    grouped = grouped[~((grouped['Estado_Gestion'] == 'CON GESTIÓN') & (grouped['Cargo_Usuario'] == ''))]
-
-    if grouped['Cantidad'].sum() == 0:
-        return None, None
-        
-    return grouped, df_merged['Estado_Gestion'].value_counts()
-
-
-# --- FUNCIONES DE GRÁFICOS (Ahora más rápidas) ---
 
 def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS"):
     """Versión OPTIMIZADA: Recibe datos pre-calculados."""
@@ -132,53 +94,35 @@ def create_recaudo_detail_sunburst_chart(grouped_data, conteo_gestion, estado_se
     fig.update_layout(title=dict(text=titulo, font=dict(size=20, color=COLOR_TEXTO), x=0.5))
     return fig
 
-def create_rodamiento_bar_chart(df):
+def create_rodamiento_bar_chart(df_agg):
     """
-    Crea un gráfico de barras APILADAS mostrando el número de cuentas
-    por Rodamiento, desglosado por Franja de Cartera.
+    Versión OPTIMIZADA: Recibe datos pre-agregados y solo los visualiza.
     """
-    # 1. Verificamos que existan las columnas necesarias
-    if df.empty or 'Rodamiento' not in df.columns or 'Franja_Cartera' not in df.columns:
+    if df_agg is None or df_agg.empty:
         return None
-
-    # 2. Agrupamos y contamos por ambas categorías para obtener los datos de cada segmento
-    chart_data = df.groupby(['Rodamiento', 'Franja_Cartera']).size().reset_index(name='Número de Cuentas')
     
-    # 3. Ordenamos las franjas lógicamente para el gráfico y la leyenda
-    # Usamos las franjas que realmente existen en los datos filtrados
-    franjas_existentes = [f for f in ORDEN_FRANJAS if f in chart_data['Franja_Cartera'].unique()]
-    chart_data['Franja_Cartera'] = pd.Categorical(chart_data['Franja_Cartera'], categories=franjas_existentes, ordered=True)
-    
-    # 4. Creamos la figura con Plotly Express
+    # <-- YA NO HAY PROCESAMIENTO DE DATOS AQUÍ
     fig = px.bar(
-        chart_data,
+        df_agg,
         x='Rodamiento',
         y='Número de Cuentas',
-        color='Franja_Cartera', # <-- Esta es la clave para apilar las barras
+        color='Franja_Cartera',
         title="<b>Cuentas por Rodamiento y Franja</b>",
         text_auto=True,
-        color_discrete_sequence=px.colors.qualitative.Vivid # Una paleta de colores con buen contraste
+        color_discrete_sequence=px.colors.qualitative.Vivid
     )
-
-    # 5. Ajustamos el diseño final
     fig.update_layout(
-        barmode='stack', # Asegura que las barras estén apiladas una sobre otra
+        barmode='stack',
         title_font_color='#EAEAEA',
         xaxis_title="Estado de Rodamiento",
         yaxis_title="Número de Cuentas",
         font_color='#EAEAEA',
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        legend_title_text='Franja', # Añadimos un título a la leyenda
-        showlegend=True # Activamos la leyenda
+        legend_title_text='Franja',
+        showlegend=True
     )
-    
-    # Ajustamos el texto dentro de las barras para que sea más legible
     fig.update_traces(
-        textfont_size=12,
-        textangle=0,
-        textposition='inside',
-        insidetextanchor='middle' # Centra el texto en cada segmento
+        textfont_size=12, textangle=0, textposition='inside', insidetextanchor='middle'
     )
-    
     return fig

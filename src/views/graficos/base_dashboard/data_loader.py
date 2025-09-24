@@ -2,8 +2,6 @@
 import streamlit as st
 import pandas as pd
 
-
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_and_process_data(uploaded_file):
     """
@@ -11,10 +9,15 @@ def load_and_process_data(uploaded_file):
     Devuelve dos DataFrames: cartera y novedades.
     """
     try:
-        df_cartera = pd.read_excel(uploaded_file, sheet_name="Analisis_de_Cartera")
-        df_novedades = pd.read_excel(uploaded_file, sheet_name="Detalle_Novedades")
+         # --- LECTURA OPTIMIZADA: Leemos ambas hojas en una sola operación ---
+        all_sheets = pd.read_excel(
+            uploaded_file, 
+            sheet_name=["Analisis_de_Cartera", "Detalle_Novedades"]
+        )
+        df_cartera = all_sheets["Analisis_de_Cartera"]
+        df_novedades = all_sheets["Detalle_Novedades"]
 
-        # --- Limpieza y conversión de tipos ---
+        # --- La limpieza de datos se mantiene igual ---
         date_cols = ["Fecha_Desembolso", "Fecha_Ultima_Novedad"]
         for col in date_cols:
             if col in df_cartera.columns:
@@ -31,17 +34,14 @@ def load_and_process_data(uploaded_file):
         if "Cantidad_Novedades" in df_cartera.columns:
             df_cartera['Cantidad_Novedades'] = pd.to_numeric(df_cartera['Cantidad_Novedades'], errors='coerce').fillna(0)
 
-        # Esto asegura que ambas columnas se traten como texto limpio y sin espacios.
         if 'Cedula_Cliente' in df_cartera.columns:
-            # Convierte a texto y quita espacios en blanco de los lados
             df_cartera['Cedula_Cliente'] = df_cartera['Cedula_Cliente'].astype(str).str.strip()
 
         if 'Cedula_Cliente' in df_novedades.columns:
-            # Convierte a texto y quita espacios en blanco de los lados
             df_novedades['Cedula_Cliente'] = df_novedades['Cedula_Cliente'].astype(str).str.strip()
-        # --- FIN DE LA SECCIÓN AÑADIDA ---    
-
+            
         return df_cartera, df_novedades
+
     except Exception as e:
         st.error(f"Error al leer el archivo. Asegúrate de que las hojas 'Analisis_de_Cartera' y 'Detalle_Novedades' existan. Error: {e}")
         return None, None

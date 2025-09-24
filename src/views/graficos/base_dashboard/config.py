@@ -15,6 +15,6 @@ ZONA_COBRO_MAP = {
 # Columnas a mostrar por defecto en la tabla de cartera
 COLUMNAS_DEFECTO_CARTERA = [
     'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Empresa',
-    'Saldo_Capital', 'Dias_Atraso', 'Franja_Meta', 'Rodamiento',
+    'Dias_Atraso', 'Franja_Meta', 'Rodamiento',
     'Franja_Meta_Final', 'Cantidad_Novedades', 'Fecha_Ultima_Novedad'
 ]

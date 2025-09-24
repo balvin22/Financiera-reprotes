@@ -59,7 +59,7 @@ def main():
     # 4. Renderizar la página principal
     tab1, tab2, tab3, tab4 = st.tabs([
         "📈 Métricas Principales",
-        "🔄 Análisis de Rodamiento",
+        "🔄 Seguimientos",
         "📄 Datos Detallados", 
         "🎯 Resultados"
     ])
@@ -109,95 +109,76 @@ def main():
                 
                 
     with tab2:
-        st.header("Análisis de Rodamiento y Gestión")
-
-        # --- Inicialización del estado de la sesión ---
+        st.header("Seguimientos y Gestión")
+        
+        # --- Inicialización del estado de la sesión (sin cambios) ---
         if 'recaudo_seleccionado' not in st.session_state:
             st.session_state.recaudo_seleccionado = "TODOS"
 
-        conteo_estados_donut = tab2_data.get("donut_data")
-            
-        top_left, top_center, top_right = st.columns([0.5, 2, 0.5])
-        
-        with top_center:
-            estado_actual = st.session_state.recaudo_seleccionado
+        # --- 1. Creación del Layout Principal (sin cambios) ---
+        col_filtro, col_detalles = st.columns([2, 3])
 
-        # Botón para resetear la selección
-            if st.button("Ver Todos"):
-                st.session_state.recaudo_seleccionado = "TODOS"
-
-            # Creación del gráfico de dona
+        # --- Columna Izquierda: Filtro Interactivo (sin cambios) ---
+        with col_filtro:
+            conteo_estados_donut = tab2_data.get("donut_data")
             donut_chart_fig = charts_rodamientos.create_recaudo_donut_chart(
                 conteo_estados_donut,
-                estado_seleccionado=estado_actual
+                estado_seleccionado=st.session_state.recaudo_seleccionado
             )
-
             if donut_chart_fig:
-                # Usamos plotly_events, que está diseñado para este tipo de clic
-                puntos_seleccionados = plotly_events(
-                    donut_chart_fig,
-                    click_event=True,
-                    key="donut_chart_events" # Key estática para no reconstruir el gráfico
-                )
-
-                # La información se devuelve como una lista, no se guarda en session_state
-                if puntos_seleccionados:
-                    # Obtenemos la etiqueta del punto presionado del diccionario que devuelve la librería
-                    clicked_label = puntos_seleccionados[0]["label"]
-
-                    if estado_actual == "TODOS":
-                        st.session_state.recaudo_seleccionado = clicked_label
-                    else:
-                        st.session_state.recaudo_seleccionado = "TODOS"
-                    
-                    # Forzamos un rerun suave para actualizar la vista
-                    st.rerun()
+                st.plotly_chart(donut_chart_fig, use_container_width=True)
             else:
                 st.info("No hay datos de recaudo para mostrar.")
-                st.markdown("---")
 
-        # --- FILA INFERIOR: Gráficos de Detalle ---
-        col_izq, col_der = st.columns(2)
-        with col_izq:
-            st.subheader("Análisis de Gestión")
-            grouped_sunburst = tab2_data.get("sunburst_initial_grouped")
-            conteo_gestion_sunburst = tab2_data.get("sunburst_initial_counts")
+            cols_botones = st.columns(2)
+            if st.session_state.recaudo_seleccionado == "TODOS":
+                if cols_botones[0].button("🔍 Filtrar por PAGO", use_container_width=True):
+                    st.session_state.recaudo_seleccionado = "PAGO"
+                    st.rerun()
+                if cols_botones[1].button("🔍 Filtrar por SIN PAGO", use_container_width=True):
+                    st.session_state.recaudo_seleccionado = "SIN PAGO"
+                    st.rerun()
+            else:
+                if st.button(f"↩️ Mostrar TODOS", use_container_width=True):
+                    st.session_state.recaudo_seleccionado = "TODOS"
+                    st.rerun()
+
+        # --- 2. Lógica para obtener los datos (sin cambios) ---
+        estado_actual = st.session_state.recaudo_seleccionado
+        if estado_actual == 'PAGO':
+            grouped_data, conteo_data = tab2_data.get("detalle_pago", (None, None))
+        elif estado_actual == 'SIN PAGO':
+            grouped_data, conteo_data = tab2_data.get("detalle_sin_pago", (None, None))
+        else: # "TODOS"
+            grouped_data = tab2_data.get("sunburst_initial_grouped")
+            conteo_data = tab2_data.get("sunburst_initial_counts")
+
+        # --- Columna Derecha: Gráficos de Detalle (APILADOS VERTICALMENTE) ---
+        with col_detalles:
+            # <-- CAMBIO: Eliminamos las sub-columnas de aquí
             
-            sunburst_chart_fig = charts_rodamientos.create_gestion_sunburst_chart(
-                grouped_sunburst, 
-                conteo_gestion_sunburst
-            )
+            # Gráfico 1: Análisis de Gestión
+            st.subheader(f"Análisis de Gestión ({estado_actual.capitalize()})")
+            sunburst_chart_fig = charts_rodamientos.create_gestion_sunburst_chart(grouped_data, conteo_data)
             if sunburst_chart_fig:
                 st.plotly_chart(sunburst_chart_fig, use_container_width=True)
             else:
-                st.info("No hay datos de gestión para mostrar.")
-
-        with col_der:
-            st.subheader("Detalle por Selección")
-            estado_actual_detalle = st.session_state.recaudo_seleccionado
+                st.info("No hay datos de gestión para la selección.")
             
-            # --- CAMBIO CRÍTICO: Se usa la búsqueda directa de datos pre-calculados ---
-            if estado_actual_detalle == 'PAGO':
-                grouped_detalle, conteo_gestion_detalle = tab2_data.get("detalle_pago", (None, None))
-            elif estado_actual_detalle == 'SIN PAGO':
-                grouped_detalle, conteo_gestion_detalle = tab2_data.get("detalle_sin_pago", (None, None))
-            else: # "TODOS"
-                grouped_detalle = tab2_data.get("sunburst_initial_grouped")
-                conteo_gestion_detalle = tab2_data.get("sunburst_initial_counts")
-            
-            detalle_fig = charts_rodamientos.create_recaudo_detail_sunburst_chart(
-                grouped_detalle,
-                conteo_gestion_detalle,
-                estado_actual_detalle
-            )
+            # Gráfico 2: Detalle por Cargo (se mostrará debajo del anterior)
+            st.subheader(f"Detalle por Cargo ({estado_actual.capitalize()})")
+            detalle_fig = charts_rodamientos.create_recaudo_detail_sunburst_chart(grouped_data, conteo_data, estado_actual)
             if detalle_fig:
                 st.plotly_chart(detalle_fig, use_container_width=True)
             else:
-                st.warning(f"No se encontraron datos de gestión para la selección.")
+                st.warning(f"No se encontraron datos de detalle para la selección.")
 
-        st.markdown("---") 
-        st.subheader("Seguimiento")
-
+        # Separador final
+        st.markdown("---")
+ 
+            
+        
+        st.subheader("Seguimiento por Rodammiento")
         # 1. Obtenemos los datos ya agregados
         agg_rodamiento = tab2_data.get("rodamiento_data")
         if agg_rodamiento is not None and not agg_rodamiento.empty:
@@ -218,10 +199,67 @@ def main():
             
             if fig_rodamiento:
                 st.plotly_chart(fig_rodamiento, use_container_width=True)
+                
+            st.markdown("---")
+            st.subheader("🔍 Detalle de Créditos por Gestión y Rodamiento")
+
+            # 1. Obtenemos el dataframe completo
+            df_processed_cartera = tab2_data.get("processed_cartera")
+
+            if df_processed_cartera is not None and not df_processed_cartera.empty:
+                
+                # 2. Filtros de datos (esto se mantiene igual)
+                opcion_gestion = st.radio(
+                    "Filtrar por estado de gestión:",
+                    options=['TODOS', 'CON GESTIÓN', 'SIN GESTIÓN'],
+                    horizontal=True
+                )
+                df_filtrado_paso_1 = df_processed_cartera[df_processed_cartera['Rodamiento'].isin(selected_rodamientos)]
+                if opcion_gestion == 'TODOS':
+                    df_tabla = df_filtrado_paso_1
+                else:
+                    df_tabla = df_filtrado_paso_1[df_filtrado_paso_1['Estado_Gestion'] == opcion_gestion]
+
+                # --- INICIO DE LA NUEVA LÓGICA PARA SELECCIONAR COLUMNAS ---
+
+                # 3. Define la lista COMPLETA de columnas que el usuario puede elegir
+                todas_las_columnas_posibles = [
+                    'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 
+                    'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1',
+                    'Dias_Atraso_Final', 'Total_Recaudo', 'Codeudor2', 'Nombre_Codeudor2', 
+                    'Telefono_Codeudor2', 'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido'
+                ]
+                # Filtramos para asegurarnos de que solo ofrecemos columnas que realmente existen
+                columnas_disponibles = [col for col in todas_las_columnas_posibles if col in df_tabla.columns]
+
+                # 4. Creamos el widget MULTISELECT para que el usuario elija
+                columnas_seleccionadas = st.multiselect(
+                    "Selecciona las columnas a mostrar en la tabla:",
+                    options=columnas_disponibles,
+                    # Define aquí las columnas que quieres que aparezcan por defecto
+                    default=['Credito', 'Nombre_Cliente', 'Dias_Atraso_Final', 'Total_Recaudo', 'Valor_Vencido']
+                )
+
+                # --- FIN DE LA NUEVA LÓGICA ---
+
+                # 5. Mostramos la tabla interactiva con las columnas seleccionadas
+                st.info(f"Mostrando {len(df_tabla)} créditos que coinciden con los filtros")
+                
+                # Solo mostramos la tabla si el usuario ha seleccionado al menos una columna
+                if not columnas_seleccionadas:
+                    st.warning("Por favor, selecciona al menos una columna para mostrar en la tabla.")
+                elif not df_tabla.empty:
+                    st.data_editor(
+                        # Usamos la lista de columnas que el usuario eligió
+                        df_tabla[columnas_seleccionadas], 
+                        use_container_width=True,
+                        hide_index=True,
+                        disabled=True
+                    )
+                else:
+                    st.warning("No se encontraron créditos que coincidan con la selección.")
             else:
-                st.info("Selecciona al menos un estado de Rodamiento para ver el gráfico.")
-        else:
-            st.info("No hay datos de Rodamiento disponibles para los filtros seleccionados.")
+                st.info("No hay datos de cartera disponibles para mostrar en la tabla.")
 
     with tab3:
         st.header("Explorador de Datos")

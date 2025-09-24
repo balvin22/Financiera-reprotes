@@ -39,6 +39,7 @@ def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS"):
         title=dict(text=titulo_texto, font=dict(size=20, color=COLOR_TEXTO), x=0.5),
         annotations=[dict(text=total_creditos_str, x=0.5, y=0.5, font_size=24, showarrow=False, font=dict(color=COLOR_TEXTO))],
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=14, color=COLOR_TEXTO)),
+        height=450, # Establecemos una altura fija
         margin=dict(l=20, r=20, t=60, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         showlegend=show_legend
     )
@@ -73,8 +74,10 @@ def create_gestion_sunburst_chart(grouped_data, conteo_gestion):
         insidetextfont=dict(size=12, color='white')
     ))
     fig.update_layout(
-        title=dict(text='<b>Distribución de la Gestión</b>', font=dict(size=20, color=COLOR_TEXTO), x=0.5),
-        margin=dict(t=60, l=20, r=20, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        height=225, # La mitad de la altura del gráfico principal
+        margin=dict(t=20, l=20, r=20, b=20), # Reducimos el margen superior
+        paper_bgcolor='rgba(0,0,0,0)', 
+        plot_bgcolor='rgba(0,0,0,0)'
     )
     return fig
 
@@ -101,15 +104,20 @@ def create_rodamiento_bar_chart(df_agg):
     if df_agg is None or df_agg.empty:
         return None
     
-    # <-- YA NO HAY PROCESAMIENTO DE DATOS AQUÍ
     fig = px.bar(
         df_agg,
         x='Rodamiento',
         y='Número de Cuentas',
-        color='Franja_Cartera',
-        title="<b>Cuentas por Rodamiento y Franja</b>",
+        # <-- CAMBIO: El color ahora se basa en el estado de la gestión
+        color='Estado_Gestion', 
+        # <-- CAMBIO: Título actualizado
+        title="<b>Cuentas por Rodamiento y Estado de Gestión</b>", 
         text_auto=True,
-        color_discrete_sequence=px.colors.qualitative.Vivid
+        # Opcional: puedes definir colores específicos para 'CON GESTIÓN' y 'SIN GESTIÓN'
+        color_discrete_map={
+            'CON GESTIÓN': '#1f77b4',  # Azul
+            'SIN GESTIÓN': '#d62728'   # Rojo
+        }
     )
     fig.update_layout(
         barmode='stack',
@@ -119,7 +127,8 @@ def create_rodamiento_bar_chart(df_agg):
         font_color='#EAEAEA',
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        legend_title_text='Franja',
+        # <-- CAMBIO: Título de la leyenda actualizado
+        legend_title_text='Gestión', 
         showlegend=True
     )
     fig.update_traces(

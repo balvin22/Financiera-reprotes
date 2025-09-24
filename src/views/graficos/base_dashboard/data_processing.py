@@ -53,23 +53,41 @@ def prepare_tab1_data(df):
     # --- 4. Datos para: create_vigencia_sunburst_chart ---
     agg_vigencia = None
     if 'Fecha_Cuota_Vigente' in df.columns:
+        # 1. Copiamos la columna original para no modificarla.
         df_vigencia_copy = df[['Fecha_Cuota_Vigente']].copy()
-        df_vigencia_copy['Estado_Vigencia_Agrupado'] = df_vigencia_copy['Fecha_Cuota_Vigente'].astype(str)
-        df_vigencia_copy.loc[~df_vigencia_copy['Estado_Vigencia_Agrupado'].isin(['ANTICIPADO', 'VIGENCIA EXPIRADA']), 'Estado_Vigencia_Agrupado'] = 'VIGENTES'
+        
+        # 2. Convertimos a fecha, los textos como 'ANTICIPADO' se volverán NaT (Not a Time).
+        fechas_reales = pd.to_datetime(df_vigencia_copy['Fecha_Cuota_Vigente'], errors='coerce')
+        
+        # 3. Creamos la nueva columna 'Estado_Vigencia_Agrupado'
+        # Por defecto, todo lo que sea una fecha válida se marcará como 'VIGENTES'.
+        df_vigencia_copy['Estado_Vigencia_Agrupado'] = 'VIGENTES'
+        
+        # 4. Corregimos las etiquetas: Donde no hay una fecha válida (es NaT),
+        # usamos el valor original de la columna (que sería 'ANTICIPADO', 'VIGENCIA EXPIRADA', etc.).
+        df_vigencia_copy.loc[fechas_reales.isna(), 'Estado_Vigencia_Agrupado'] = df_vigencia_copy['Fecha_Cuota_Vigente']
+
+        # 5. El resto de tu lógica para sub-estados funciona sobre las fechas ya identificadas.
         df_vigencia_copy['Sub_Estado_Vigencia'] = ''
         
+        # Máscara para encontrar solo las filas que son 'VIGENTES'
         vigentes_mask = df_vigencia_copy['Estado_Vigencia_Agrupado'] == 'VIGENTES'
+        
         if vigentes_mask.any():
-            vigentes_indices = df_vigencia_copy[vigentes_mask].index
-            fechas_reales = pd.to_datetime(df_vigencia_copy.loc[vigentes_indices, 'Fecha_Cuota_Vigente'], errors='coerce')
+            # Filtramos las fechas que corresponden a 'VIGENTES'
+            fechas_vigentes = fechas_reales[vigentes_mask]
             
             current_year, current_month = datetime.now().year, datetime.now().month
-            fechas_mes_actual = fechas_reales[(fechas_reales.dt.year == current_year) & (fechas_reales.dt.month == current_month)]
+            
+            # Filtramos las fechas vigentes que son del mes y año actual
+            fechas_mes_actual = fechas_vigentes[(fechas_vigentes.dt.year == current_year) & (fechas_vigentes.dt.month == current_month)]
 
             if not fechas_mes_actual.empty:
+                # Creamos las etiquetas de día solo para las fechas del mes actual
                 subdivision_labels = fechas_mes_actual.dt.day.apply(lambda d: f"Día {d}")
                 df_vigencia_copy.loc[fechas_mes_actual.index, 'Sub_Estado_Vigencia'] = subdivision_labels
         
+        # 6. Agrupamos para el gráfico. Esto ahora incluirá 'ANTICIPADO' y 'VIGENCIA EXPIRADA' correctamente.
         agg_vigencia = df_vigencia_copy.groupby(['Estado_Vigencia_Agrupado', 'Sub_Estado_Vigencia']).size().reset_index(name='count')
 
 
@@ -110,11 +128,11 @@ def prepare_tab2_data(df_cartera, df_novedades):
 
     # --- 3. Datos para el Gráfico de Rodamiento ---
     agg_rodamiento = None
-    if 'Rodamiento' in df_cartera.columns and 'Franja_Cartera' in df_cartera.columns:
-        agg_rodamiento = df_cartera.groupby(['Rodamiento', 'Franja_Cartera']).size().reset_index(name='Número de Cuentas')
-        franjas_existentes = [f for f in ORDEN_FRANJAS if f in agg_rodamiento['Franja_Cartera'].unique()]
-        agg_rodamiento['Franja_Cartera'] = pd.Categorical(agg_rodamiento['Franja_Cartera'], categories=franjas_existentes, ordered=True)
-
+    if 'Rodamiento' in df_cartera.columns and 'Estado_Gestion' in df_cartera.columns:
+        # <-- CAMBIO: Agrupamos por 'Rodamiento' y 'Estado_Gestion'
+        agg_rodamiento = df_cartera.groupby(['Rodamiento', 'Estado_Gestion']).size().reset_index(name='Número de Cuentas')
+        # <-- CAMBIO: La lógica de ordenar por franjas ya no es necesaria y se elimina
+        
     df_pago = df_merged[df_merged['Estado_Pago'] == 'PAGO']
     df_sin_pago = df_merged[df_merged['Estado_Pago'] == 'SIN PAGO']
 
@@ -133,4 +151,5 @@ def prepare_tab2_data(df_cartera, df_novedades):
         # Devolvemos los nuevos resultados pre-calculados
         "detalle_pago": (grouped_detalle_pago, conteo_detalle_pago),
         "detalle_sin_pago": (grouped_detalle_sin_pago, conteo_detalle_sin_pago),
+        "processed_cartera": df_cartera
     }

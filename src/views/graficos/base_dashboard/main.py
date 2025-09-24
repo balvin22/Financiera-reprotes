@@ -23,6 +23,7 @@ def main():
 
     # 1. Cargar y procesar datos
     df_cartera, df_novedades = data_loader.load_and_process_data(uploaded_file)
+    # st.dataframe(df_cartera.head()) 
     if df_cartera is None:
         return
 
@@ -180,7 +181,7 @@ def main():
 
         st.markdown("---") 
 
-        st.subheader("Análisis por Rodamiento")
+        st.subheader("Seguimineto")
 
         # 1. Obtenemos las opciones de 'Rodamiento' de los datos ya filtrados globalmente
         rodamiento_options = sorted(df_cartera_filtrada['Rodamiento'].unique())
@@ -205,8 +206,6 @@ def main():
             st.info("Selecciona al menos un estado de Rodamiento para ver el gráfico.")
         
 
-
-
     with tab3:
         st.header("Explorador de Datos")
         ui_components.display_detailed_data(df_cartera_filtrada, "Cartera Filtrada", COLUMNAS_DEFECTO_CARTERA)
@@ -222,12 +221,53 @@ def main():
         else:
             st.warning("No se encontraron novedades que coincidan con los filtros de cartera seleccionados.")
 
-    with tab4:
-        st.header("Resultados de Cumplimiento por Zona y Franja")
+    # with tab4:
+    #     st.header("Resultados de Cumplimiento por Zona y Franja")
 
-       
+    #     # --- CORRECCIÓN FINAL ---
+    #     # Llamamos a la función de preparación pasando el DataFrame ORIGINAL
+    #     # y los filtros de la barra lateral como argumentos.
+    #     df_resultados = charts_resultados.prepare_resultados_data(
+    #         df_cartera, # Pasamos el DataFrame original, sin filtrar
+    #         filters['empresa'],
+    #         filters['regional_cobro']
+    #     )
 
-        
+    #     if df_resultados.empty:
+    #         st.warning("No se encontraron datos para las franjas '1 A 30' a '181 A 360' con los filtros seleccionados.")
+    #     else:
+    #         zonas_disponibles = sorted(df_resultados['Zona'].unique())
+            
+    #         zona_seleccionada = st.selectbox(
+    #             "Selecciona la Zona para todos los resultados:",
+    #             options=zonas_disponibles,
+    #             key="zona_selector_global_resultados" 
+    #         )
+
+    #         st.markdown("---")
+            
+    #         datos_zona = df_resultados[df_resultados['Zona'] == zona_seleccionada]
+
+    #         franjas_a_mostrar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']
+    #         cols = st.columns(4)
+            
+    #         for col, franja in zip(cols, franjas_a_mostrar):
+    #             with col:
+    #                 st.subheader(f"Franja: {franja}")
+    #                 data_row = datos_zona[datos_zona['Franja_Meta'] == franja]
+                    
+    #                 if not data_row.empty:
+    #                     meta = data_row['Meta_Total'].iloc[0]
+    #                     recaudo = data_row['Recaudo_Total'].iloc[0]
+    #                     cumplimiento = data_row['Cumplimiento_%'].iloc[0]
+                        
+    #                     fig_gauge = charts_resultados.create_gauge_chart(
+    #                         value=cumplimiento, meta=meta, recaudo=recaudo, title=zona_seleccionada
+    #                     )
+    #                     st.plotly_chart(fig_gauge, use_container_width=True)
+    #                 else:
+    #                     st.warning(f"Sin datos para esta franja.")
+
 
 if __name__ == "__main__":
     main()

@@ -458,9 +458,6 @@ def main():
             # Si la columna 'Zona' no existe, mostramos este mensaje en lugar del error
             st.warning("No se encontraron Zonas con los filtros globales seleccionados para mostrar estos resultados.")
 
-        
-
-
     with tab4:
         st.header("Explorador de Datos")
         ui_components.display_detailed_data(df_cartera_filtrada, "Cartera Filtrada", COLUMNAS_DEFECTO_CARTERA)

@@ -3,21 +3,22 @@ import plotly.express as px
 
 COLOR_TEXTO = '#EAEAEA'
 
-def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS"):
-    """Versión OPTIMIZADA: Recibe datos pre-calculados."""
+def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS", show_center_text=True):
+    """Versión OPTIMIZADA: Recibe datos pre-calculados y permite ocultar el texto central."""
     if conteo_estados is None:
         return None
 
     colores = {'PAGO': '#28a745', 'SIN PAGO': '#dc3545'}
     
+    # Esta parte de la lógica se mantiene igual
     if estado_seleccionado == "TODOS":
         labels = ['PAGO', 'SIN PAGO']
         values = [conteo_estados.get('PAGO', 0), conteo_estados.get('SIN PAGO', 0)]
         if sum(values) == 0: return None
         total_creditos_str = f"<b>{int(sum(values)):,}</b><br>Créditos Totales"
-        titulo_texto = '<b>Estado de Cumplimiento</b>'
         show_legend = True
     else:
+        # ... (esta parte else no se usará en el nuevo diseño, pero la dejamos por si acaso)
         cantidad = conteo_estados.get(estado_seleccionado, 0)
         if cantidad == 0: return None
         labels = [estado_seleccionado]
@@ -35,9 +36,15 @@ def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS"):
         hoverinfo='none', sort=False,
         hovertemplate="<b>%{label}</b><br><b>Créditos:</b> %{value:,}<br><b>Porcentaje:</b> %{percent}<extra></extra>"
     )])
+    
+    # Preparamos la anotación del centro
+    annotations = []
+    if show_center_text:
+        annotations.append(dict(text=total_creditos_str, x=0.5, y=0.5, font_size=24, showarrow=False, font=dict(color=COLOR_TEXTO)))
+
     fig.update_layout(
-        title=dict(text=titulo_texto, font=dict(size=20, color=COLOR_TEXTO), x=0.5),
-        annotations=[dict(text=total_creditos_str, x=0.5, y=0.5, font_size=24, showarrow=False, font=dict(color=COLOR_TEXTO))],
+        # <-- CAMBIO: Usamos la lista de anotaciones (que puede estar vacía)
+        annotations=annotations,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=14, color=COLOR_TEXTO)),
         height=450, # Establecemos una altura fija
         margin=dict(l=20, r=20, t=60, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
@@ -45,7 +52,7 @@ def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS"):
     )
     return fig
 
-def create_gestion_sunburst_chart(grouped_data, conteo_gestion):
+def create_gestion_sunburst_chart(grouped_data, conteo_gestion, height=225):
     """Versión OPTIMIZADA: Recibe datos pre-calculados."""
     if grouped_data is None:
         return None
@@ -54,11 +61,13 @@ def create_gestion_sunburst_chart(grouped_data, conteo_gestion):
     parents = ['', '']
     values = [conteo_gestion.get('CON GESTIÓN', 0), conteo_gestion.get('SIN GESTIÓN', 0)]
     
+    # Agregar hijos SOLO de "CON GESTIÓN"
     hijos = grouped_data[grouped_data['Estado_Gestion'] == 'CON GESTIÓN']
     labels.extend(hijos['Cargo_Usuario'])
     parents.extend(hijos['Estado_Gestion'])
     values.extend(hijos['Cantidad'])
 
+    # Colores personalizados
     color_map = {'SIN GESTIÓN': '#dc3545', 'CON GESTIÓN': '#28a745'}
     palette = px.colors.qualitative.Plotly
     cargos_unicos = hijos['Cargo_Usuario'].unique()
@@ -66,35 +75,34 @@ def create_gestion_sunburst_chart(grouped_data, conteo_gestion):
         color_map[cargo] = palette[i % len(palette)]
     final_colors = [color_map.get(label, '#cccccc') for label in labels]
 
+    # Gráfico Sunburst
     fig = go.Figure(go.Sunburst(
         labels=labels, parents=parents, values=values,
         branchvalues='total',
         hovertemplate='<b>%{label}</b><br>Créditos: %{value}<br>Del total: %{percentRoot:.2%}',
         marker=dict(colors=final_colors),
-        insidetextfont=dict(size=12, color='white')
+        insidetextorientation='radial',
+        insidetextfont=dict(size=14, color='white'),
+        textinfo="label+percent entry"  # <-- MOSTRAR porcentaje directamente
     ))
     fig.update_layout(
-        height=225, # La mitad de la altura del gráfico principal
-        margin=dict(t=20, l=20, r=20, b=20), # Reducimos el margen superior
+        height=height,  # Mitad de 450 para que dos sumen lo mismo que el donut
+        margin=dict(t=20, l=20, r=20, b=20),
         paper_bgcolor='rgba(0,0,0,0)', 
         plot_bgcolor='rgba(0,0,0,0)'
     )
     return fig
 
-def create_recaudo_detail_sunburst_chart(grouped_data, conteo_gestion, estado_seleccionado):
-    """Versión OPTIMIZADA: Reutiliza la lógica y datos pre-calculados."""
+def create_recaudo_detail_sunburst_chart(grouped_data, conteo_gestion, estado_seleccionado, height=225):
     if grouped_data is None:
         return None
 
-    fig = create_gestion_sunburst_chart(grouped_data, conteo_gestion)
-    if fig is None: return None
+    fig = create_gestion_sunburst_chart(grouped_data, conteo_gestion, height=height)
+    if fig is None:
+        return None
 
-    if estado_seleccionado == 'TODOS':
-        titulo = '<b>Detalle de Gestión (General)</b>'
-    else:
-        titulo = f"<b>Detalle para '{estado_seleccionado.capitalize()}'</b>"
-
-    fig.update_layout(title=dict(text=titulo, font=dict(size=20, color=COLOR_TEXTO), x=0.5))
+    fig.update_layout(
+    )
     return fig
 
 def create_rodamiento_bar_chart(df_agg):

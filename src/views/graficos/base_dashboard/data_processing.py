@@ -151,5 +151,6 @@ def prepare_tab2_data(df_cartera, df_novedades):
         # Devolvemos los nuevos resultados pre-calculados
         "detalle_pago": (grouped_detalle_pago, conteo_detalle_pago),
         "detalle_sin_pago": (grouped_detalle_sin_pago, conteo_detalle_sin_pago),
-        "processed_cartera": df_cartera
+        "processed_cartera": df_cartera,
+        "processed_data_merged": df_merged
     }

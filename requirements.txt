@@ -4,4 +4,4 @@ plotly
 numpy
 openpyxl
 pyinstaller
-streamlit-plotly-events
+pyinstaller-hooks-contrib

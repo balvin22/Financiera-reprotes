@@ -74,7 +74,6 @@ def create_analysis_chart(df_data, group_value):
 
     fig.update_yaxes(title_text="<b>Monto ($)</b>", secondary_y=False, tickformat="$,.0f")
     fig.update_yaxes(title_text="<b>Porcentaje (%)</b>", secondary_y=True, tickformat=".0%")
-
     return fig
 
 # --- CARGADOR DE ARCHIVOS ---

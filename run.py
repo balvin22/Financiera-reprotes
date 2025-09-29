@@ -1,36 +1,36 @@
-# run.py
+# run.py (versión final con apertura de navegador)
 import sys
 import os
-import webbrowser
-from streamlit.web import bootstrap
+import webbrowser  # <-- 1. IMPORTAMOS EL MÓDULO
+from streamlit.web.cli import main as stcli
 
 def resource_path(relative_path):
-    """ Obtiene la ruta absoluta al recurso, funciona para desarrollo y para PyInstaller """
+    """ Obtiene la ruta absoluta al recurso, funciona para dev y para PyInstaller """
     try:
-        # PyInstaller crea una carpeta temporal y guarda la ruta en _MEIPASS
         base_path = sys._MEIPASS
     except Exception:
-        base_path = os.path.abspath(".")
-
+        base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
-def run_streamlit():
-    # La ruta a tu script principal de Streamlit, usando resource_path
-    script_path = resource_path("franjas_dashboard.py")
+def main():
+    dashboard_path = resource_path("franjas_dashboard.py")
     
-    # Prepara los argumentos para Streamlit
+    # 2. DEFINIMOS LA URL QUE VAMOS A ABRIR
+    url = "http://localhost:8501"
+    
     args = [
-        "--server.headless", "true",
-        "--server.port", "8501",
-        "--server.runOnSave", "false",
-        "--browser.serverAddress", "localhost"
+        "run",
+        dashboard_path,
+        f"--server.port=8501",
+        "--server.headless=true",
+        "--global.developmentMode=false",
     ]
     
-    # Abrir el navegador justo cuando el servidor esté listo (opcional pero mejora la experiencia)
-    webbrowser.open("http://localhost:8501")
+    # 3. ABRIMOS EL NAVEGADOR
+    webbrowser.open(url)
     
-    # Llama directamente a la función de arranque de Streamlit
-    bootstrap.run(script_path, "run", args, flag_options={})
+    sys.argv = ["streamlit"] + args
+    sys.exit(stcli())
 
 if __name__ == "__main__":
-    run_streamlit()
+    main()

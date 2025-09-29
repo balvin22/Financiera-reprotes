@@ -1,5 +1,6 @@
 # Entorno virtual (cambia el nombre si usas otro)
 entorno_financiera/
+entorno_estable/
 venv/
 env/
 

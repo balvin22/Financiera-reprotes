@@ -1,4 +1,5 @@
 # main.py
+from datetime import date
 import streamlit as st
 import data_loader
 import ui_components
@@ -266,9 +267,10 @@ def main():
             
             # <-- IMPORTANTE: ¡COMPLETA ESTA LISTA CON TODAS LAS COLUMNAS QUE QUIERAS OFRECER!
             todas_las_columnas_disponibles = [
-                'Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona', 
-                'Dias_Atraso_Final', 'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago', 
-                'Estado_Gestion', 'Cargo_Usuario','Cantidad_Novedades'
+                'Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
+                'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Cantidad_Novedades',
+                'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2'
+                
                 # Añade aquí todas las demás columnas que desees
             ]
             
@@ -395,10 +397,10 @@ def main():
             # --- Selector de Columnas (sin cambios) ---
             todas_las_columnas_posibles = [
                 'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 
-                'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1',
-                'Dias_Atraso_Final', 'Total_Recaudo', 'Codeudor2', 'Nombre_Codeudor2', 
-                'Telefono_Codeudor2', 'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
-                'Rodamiento_Cartera'
+                'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 
+                'Telefono_Codeudor2','Dias_Atraso_Final', 'Total_Recaudo',  'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
+                'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion'
+                
             ]
             columnas_disponibles = [col for col in todas_las_columnas_posibles if col in df_tabla.columns]
             columnas_seleccionadas = st.multiselect(
@@ -491,62 +493,70 @@ def main():
             if df_tabla.empty:
                 st.info("No hay datos detallados para las zonas seleccionadas.")
             else:
-                df_tabla['Faltante'] = df_tabla['Meta_Total'] - df_tabla['Recaudo_Total']
+                # --- 1. CALCULAR Y MOSTRAR LA META DEL DÍA ---
+                expected_compliance, start_date, end_date = charts_resultados.calculate_expected_compliance()
+                
+                # Mostramos un mensaje claro al usuario con el objetivo del día
+                st.info(f"**Meta de cumplimiento para hoy ({date.today().strftime('%d/%m/%Y')}): {expected_compliance:.2%}**\n"
+                        f"\n_(Periodo actual: {start_date.strftime('%d/%m')} al {end_date.strftime('%d/%m')})_")
 
+                # (El resto de la preparación de datos no cambia)
+                df_tabla['Faltante'] = df_tabla['Meta_Total'] - df_tabla['Recaudo_Total']
                 total_meta = df_tabla['Meta_Total'].sum()
                 total_recaudo = df_tabla['Recaudo_Total'].sum()
                 total_faltante = df_tabla['Faltante'].sum()
-
-                if total_meta > 0:
-                    total_cumplimiento = (total_recaudo / total_meta)
-                else:
-                    total_cumplimiento = 0.0
+                total_cumplimiento = (total_recaudo / total_meta) if total_meta > 0 else 0.0
 
                 df_tabla_display = df_tabla.rename(columns={
-                    'Franja_Meta': 'Franja',
-                    'Meta_Total': 'Meta ($)',
-                    'Recaudo_Total': 'Recaudo ($)',
-                    'Faltante': 'Faltante ($)',
-                    'Cumplimiento_%': 'Cumplimiento (%)'
+                    'Franja_Meta': 'Franja', 'Meta_Total': 'Meta ($)', 'Recaudo_Total': 'Recaudo ($)',
+                    'Faltante': 'Faltante ($)', 'Cumplimiento_%': 'Cumplimiento (%)'
                 })
 
-                # Añade la columna 'Regional Cobro' si existe
                 if not df_cartera[df_cartera['Zona'].isin(zonas_seleccionadas)].empty:
-                    # Usamos try-except para evitar errores si una zona no tiene regional
                     try:
                         regional_cobro_unica = df_cartera[df_cartera['Zona'] == zonas_seleccionadas[0]]['Regional_Cobro'].iloc[0]
                         df_tabla_display.insert(0, 'Regional Cobro', regional_cobro_unica)
                     except IndexError:
-                        # Si hay un problema, simplemente no añade la columna
                         pass
 
-                # Formateamos los valores a moneda y porcentaje
-                df_tabla_display['Meta ($)'] = df_tabla_display['Meta ($)'].map('${:,.0f}'.format)
-                df_tabla_display['Recaudo ($)'] = df_tabla_display['Recaudo ($)'].map('${:,.0f}'.format)
-                df_tabla_display['Faltante ($)'] = df_tabla_display['Faltante ($)'].map('${:,.0f}'.format)
-                df_tabla_display['Cumplimiento (%)'] = (df_tabla_display['Cumplimiento (%)'] * 100).map('{:.2f}%'.format)
-
-                # --- CAMBIO CLAVE: DEFINE AQUÍ EL ORDEN DE TUS COLUMNAS ---
-                # Reorganiza los nombres en esta lista como necesites.
-                # Me aseguro de que solo se usen las columnas que realmente existen en el DataFrame.
-                
                 column_order_base = [
-                    'Regional Cobro',
-                    'Zona',
-                    'Franja',
-                    'Meta ($)',
-                    'Recaudo ($)',
-                    'Faltante ($)',
-                    'Cumplimiento (%)'
+                    'Regional Cobro', 'Zona', 'Franja', 'Meta ($)', 
+                    'Recaudo ($)', 'Faltante ($)', 'Cumplimiento (%)'
                 ]
-                
-                # Filtramos la lista para incluir solo las columnas presentes en el dataframe
                 column_order = [col for col in column_order_base if col in df_tabla_display.columns]
+                df_tabla_display = df_tabla_display[column_order]
 
-                # Mostramos la tabla principal usando el orden definido
-                st.dataframe(df_tabla_display[column_order], use_container_width=True, hide_index=True)
+                # --- 2. APLICACIÓN DE ESTILOS Y FORMATO ---
+                
+                # Usamos una función lambda para pasar tanto el valor de la celda (x)
+                # como la meta del día a nuestra función de estilo.
+                styled_df = df_tabla_display.style.applymap(
+                    lambda x: charts_resultados.style_cumplimiento_bar(x, expected_compliance), 
+                    subset=['Cumplimiento (%)']
+                )
+                
+                styled_df.format({
+                    'Meta ($)': '${:,.0f}', 'Recaudo ($)': '${:,.0f}',
+                    'Faltante ($)': '${:,.0f}', 'Cumplimiento (%)': '{:.2%}'
+                })
+                
+                styled_df.hide(axis="index")
 
-                # --- Totales en métricas separadas ---
+                # --- 3. MOSTRAR TABLA CON SCROLL CONDICIONAL ---
+                html_table = styled_df.to_html()
+
+                # Si hay más de 10 filas, envolvemos la tabla en un div con scroll
+                if len(df_tabla_display) > 10:
+                    st.markdown(
+                        # Establecemos una altura máxima y activamos el scroll vertical
+                        f'<div style="max-height: 500px; overflow-y: auto;">{html_table}</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    # Si no, la mostramos de forma normal
+                    st.markdown(html_table, unsafe_allow_html=True)
+
+                # --- Totales en métricas separadas (código sin cambios) ---
                 st.markdown("---")
                 st.subheader("Totales de Zonas Seleccionadas")
                 col1, col2, col3, col4 = st.columns(4)
@@ -554,7 +564,6 @@ def main():
                 col2.metric("Recaudo Total", f"${total_recaudo:,.0f}")
                 col3.metric("Faltante Total", f"${total_faltante:,.0f}")
                 col4.metric("Cumplimiento Total", f"{total_cumplimiento * 100:.2f}%")
-        
         else:
             # --- MENSAJE AMIGABLE ---
             # Si la columna 'Zona' no existe, mostramos este mensaje en lugar del error

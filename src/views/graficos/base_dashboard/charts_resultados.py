@@ -1,6 +1,8 @@
 # charts_resultados.py
 import streamlit as st
 import pandas as pd
+from datetime import date
+from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
 
 @st.cache_data(ttl=3600)  # Aumentar TTL
@@ -121,3 +123,59 @@ def create_gauge_chart(value, meta, recaudo, title):
     )
 
     return fig
+
+def calculate_expected_compliance():
+    """
+    Calcula el porcentaje de cumplimiento esperado para el día actual
+    basado en el ciclo de cobro (5 de un mes al 4 del siguiente).
+    Retorna el valor esperado (ej: 0.83) y las fechas del periodo.
+    """
+    today = date.today()
+    
+    # Define el inicio y fin del periodo de cobro actual
+    if today.day >= 5:
+        start_date = today.replace(day=5)
+        end_date = (today + relativedelta(months=1)).replace(day=4)
+    else:
+        start_date = (today - relativedelta(months=1)).replace(day=5)
+        end_date = today.replace(day=4)
+
+    total_days_in_period = (end_date - start_date).days + 1
+    # Asegurarse de que los días transcurridos no superen el total del período
+    elapsed_days = min((today - start_date).days + 1, total_days_in_period)
+    
+    if total_days_in_period > 0 and elapsed_days > 0:
+        expected_compliance = elapsed_days / total_days_in_period
+    else:
+        expected_compliance = 0.0
+        
+    return expected_compliance, start_date, end_date
+
+# --- FUNCIÓN MODIFICADA: Ahora recibe el valor esperado ---
+def style_cumplimiento_bar(cumplimiento_real, expected_compliance):
+    """
+    Aplica un estilo de barra de progreso comparando el valor real
+    con el esperado (que se pasa como argumento).
+    """
+    # La lógica de cálculo de fecha se movió a la función anterior.
+    # Ahora solo determina el color y crea el estilo.
+
+    diferencia = expected_compliance - cumplimiento_real
+    
+    if cumplimiento_real >= expected_compliance:
+        color = '#28a745'  # Verde: Cumplido o superado
+    elif diferencia <= 0.20:  # Amarillo: Cerca (hasta 20% por debajo)
+        color = '#ffc107'
+    else:  # Rojo: Lejos
+        color = '#dc3545'
+
+    valor_barra = cumplimiento_real * 100
+    
+    style = (
+        f"background: linear-gradient(90deg, {color} {valor_barra}%, #55555530 {valor_barra}%); "
+        "color: white; "
+        "text-shadow: 1px 1px 2px black; "
+        "font-weight: bold;"
+    )
+    
+    return style

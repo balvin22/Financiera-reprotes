@@ -116,9 +116,11 @@ def prepare_tab2_data(df_cartera, df_novedades):
     # --- 2. Datos para los Sunburst Charts (prepare_sunburst_data) ---
     # Esta es la parte más costosa: el merge. Lo hacemos UNA SOLA VEZ.
     df_cartera['Estado_Gestion'] = np.where(df_cartera['Cantidad_Novedades'] > 0, 'CON GESTIÓN', 'SIN GESTIÓN')
-    
-    cargos_por_cliente = df_novedades.drop_duplicates(subset=['Cedula_Cliente'])[['Cedula_Cliente', 'Cargo_Usuario']]
-    df_merged = pd.merge(df_cartera, cargos_por_cliente, on='Cedula_Cliente', how='left')
+    # Obtenemos una tabla con las combinaciones únicas de Cédula y Cargo.
+    cargos_unicos_por_cliente = df_novedades[['Cedula_Cliente', 'Cargo_Usuario']].drop_duplicates()
+    # <--- CAMBIO CLAVE 2: Hacemos el merge. Pandas automáticamente creará las filas duplicadas necesarias.
+    df_merged = pd.merge(df_cartera, cargos_unicos_por_cliente, on='Cedula_Cliente', how='left')
+    # Rellenamos los NaN para créditos que no tuvieron ninguna gestión.
     df_merged['Cargo_Usuario'] = df_merged['Cargo_Usuario'].fillna('')
     
     # Pre-cálculo para el primer sunburst

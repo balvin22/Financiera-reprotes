@@ -4,13 +4,12 @@ import plotly.express as px
 COLOR_TEXTO = '#EAEAEA'
 
 def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS", show_center_text=True):
-    """Versión OPTIMIZADA: Recibe datos pre-calculados y permite ocultar el texto central."""
+    """Crea el gráfico de dona principal para PAGO vs SIN PAGO."""
     if conteo_estados is None:
         return None
 
     colores = {'PAGO': '#28a745', 'SIN PAGO': '#dc3545'}
-    
-    # Esta parte de la lógica se mantiene igual
+
     if estado_seleccionado == "TODOS":
         labels = ['PAGO', 'SIN PAGO']
         values = [conteo_estados.get('PAGO', 0), conteo_estados.get('SIN PAGO', 0)]
@@ -18,17 +17,15 @@ def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS", show
         total_creditos_str = f"<b>{int(sum(values)):,}</b><br>Créditos Totales"
         show_legend = True
     else:
-        # ... (esta parte else no se usará en el nuevo diseño, pero la dejamos por si acaso)
         cantidad = conteo_estados.get(estado_seleccionado, 0)
         if cantidad == 0: return None
         labels = [estado_seleccionado]
         values = [cantidad]
         total_creditos_str = f"<b>{int(cantidad):,}</b><br>Créditos Seleccionados"
-        titulo_texto = f"<b>Créditos en Estado '{estado_seleccionado.capitalize()}'</b>"
         show_legend = False
 
     marker_colors = [colores.get(label) for label in labels]
-    
+
     fig = go.Figure(data=[go.Pie(
         labels=labels, values=values, hole=.7,
         marker=dict(colors=marker_colors, line=dict(color='#2B2B2B', width=3)),
@@ -36,74 +33,86 @@ def create_recaudo_donut_chart(conteo_estados, estado_seleccionado="TODOS", show
         hoverinfo='none', sort=False,
         hovertemplate="<b>%{label}</b><br><b>Créditos:</b> %{value:,}<br><b>Porcentaje:</b> %{percent}<extra></extra>"
     )])
-    
-    # Preparamos la anotación del centro
+
     annotations = []
     if show_center_text:
         annotations.append(dict(text=total_creditos_str, x=0.5, y=0.5, font_size=24, showarrow=False, font=dict(color=COLOR_TEXTO)))
 
     fig.update_layout(
-        # <-- CAMBIO: Usamos la lista de anotaciones (que puede estar vacía)
         annotations=annotations,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=14, color=COLOR_TEXTO)),
-        height=450, # Establecemos una altura fija
-        margin=dict(l=20, r=20, t=60, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        height=300,
+        margin=dict(l=20, r=20, t=60, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
         showlegend=show_legend
     )
     return fig
 
-def create_gestion_sunburst_chart(grouped_data, conteo_gestion, height=225):
-    """Versión OPTIMIZADA: Recibe datos pre-calculados."""
-    if grouped_data is None:
+
+def create_nested_pie_chart(grouped_data, conteo_gestion, height=300):
+    """
+    Crea un gráfico de anillos anidados (Nested Pie Chart) visualmente atractivo.
+    Es un reemplazo estético para el sunburst chart.
+    """
+    if grouped_data is None or conteo_gestion is None:
         return None
-        
+
+    # --- 1. Definir la estructura de datos (igual que en el sunburst) ---
     labels = ['CON GESTIÓN', 'SIN GESTIÓN']
     parents = ['', '']
     values = [conteo_gestion.get('CON GESTIÓN', 0), conteo_gestion.get('SIN GESTIÓN', 0)]
-    
-    # Agregar hijos SOLO de "CON GESTIÓN"
+
     hijos = grouped_data[grouped_data['Estado_Gestion'] == 'CON GESTIÓN']
     labels.extend(hijos['Cargo_Usuario'])
-    parents.extend(hijos['Estado_Gestion'])
+    parents.extend(['CON GESTIÓN'] * len(hijos))
     values.extend(hijos['Cantidad'])
 
-    # Colores personalizados
-    color_map = {'SIN GESTIÓN': '#dc3545', 'CON GESTIÓN': '#28a745'}
-    palette = px.colors.qualitative.Plotly
+    # --- 2. La Magia Visual: Paleta de Colores Armónica ---
+    color_map = {
+        'SIN GESTIÓN': '#FF6B6B',  # Un rojo más suave
+        'CON GESTIÓN': '#1DDBA4'    # Un verde azulado (teal) moderno
+    }
+    child_colors = px.colors.sequential.Tealgrn
     cargos_unicos = hijos['Cargo_Usuario'].unique()
     for i, cargo in enumerate(cargos_unicos):
-        color_map[cargo] = palette[i % len(palette)]
-    final_colors = [color_map.get(label, '#cccccc') for label in labels]
+        color_map[cargo] = child_colors[i % len(child_colors)]
 
-    # Gráfico Sunburst
+    # --- 3. Construir el Gráfico ---
     fig = go.Figure(go.Sunburst(
-        labels=labels, parents=parents, values=values,
+        labels=labels,
+        parents=parents,
+        values=values,
         branchvalues='total',
-        hovertemplate='<b>%{label}</b><br>Créditos: %{value}<br>Del total: %{percentRoot:.2%}',
-        marker=dict(colors=final_colors),
+        hovertemplate='<b>%{label}</b><br>Créditos: %{value}<br>Del total: %{percentRoot:.2%}<extra></extra>',
+        marker=dict(colors=[color_map.get(l) for l in labels]),
         insidetextorientation='radial',
-        insidetextfont=dict(size=14, color='white'),
-        textinfo="label+percent entry"  # <-- MOSTRAR porcentaje directamente
+        textinfo='label+percent parent'
     ))
+
+    # --- 4. Ajustes Finales de Estilo ---
     fig.update_layout(
-        height=height,  # Mitad de 450 para que dos sumen lo mismo que el donut
-        margin=dict(t=20, l=20, r=20, b=20),
-        paper_bgcolor='rgba(0,0,0,0)', 
-        plot_bgcolor='rgba(0,0,0,0)'
+        height=height,
+        margin=dict(t=5, l=10, r=10, b=10),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
     )
+    
     return fig
 
-def create_recaudo_detail_sunburst_chart(grouped_data, conteo_gestion, estado_seleccionado, height=225):
-    if grouped_data is None:
-        return None
 
-    fig = create_gestion_sunburst_chart(grouped_data, conteo_gestion, height=height)
-    if fig is None:
-        return None
+def create_gestion_sunburst_chart(grouped_data, conteo_gestion, height=100):
+    """
+    MODIFICADO: Ahora simplemente llama a nuestra nueva función de gráfico mejorada.
+    Mantenemos el nombre para máxima compatibilidad con tu código existente.
+    """
+    return create_nested_pie_chart(grouped_data, conteo_gestion, height)
 
-    fig.update_layout(
-    )
-    return fig
+def create_recaudo_detail_sunburst_chart(grouped_data, conteo_gestion, estado_seleccionado, height=100):
+    """
+    MODIFICADO: Esta también llama a la nueva función de gráfico.
+    """
+    return create_nested_pie_chart(grouped_data, conteo_gestion, height)
 
 def create_rodamiento_bar_chart(df_agg):
     """

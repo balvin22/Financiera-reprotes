@@ -36,9 +36,10 @@ def main():
     # Esta lógica de filtrado se queda en el main ya que coordina los datos
     df_cartera_filtrada = df_cartera[
         df_cartera["Empresa"].isin(filters['empresa']) &
-        df_cartera["Franja_Meta"].isin(filters['franjas']) &
+        # df_cartera["Franja_Meta"].isin(filters['franjas']) &
         df_cartera["Regional_Cobro"].isin(filters['regional_cobro']) &
-        df_cartera["Franja_Cartera"].isin(filters['franja_cartera']) 
+        df_cartera["Franja_Cartera"].isin(filters['franja_cartera']) &
+        df_cartera["Zona"].isin(filters['Zona'])
         # ... & Añade las demás condiciones de los filtros ...
     ].copy()
 
@@ -114,61 +115,76 @@ def main():
     with tab2:
         st.header("Seguimientos y Gestión")
 
-        # Layout Principal de dos columnas
-        col_principal, col_detalles = st.columns([2, 3])
+        # --- NUEVO LAYOUT DE TRES COLUMNAS ---
+        # Usamos pesos para que la columna principal sea más ancha [Principal, Detalle, Detalle]
+        col1, col2, col3 = st.columns([2, 1.2, 1.2])
 
-        # --- Columna Izquierda: Gráfico Principal y Detalle General ---
-        with col_principal:
-            # Gráfico de Dona (sin cambios)
-            conteo_estados_donut = tab2_data.get("donut_data")
-            donut_chart_fig = charts_rodamientos.create_recaudo_donut_chart(
-                conteo_estados_donut,
-                estado_seleccionado="TODOS",
-                show_center_text=False
-            )
-            if donut_chart_fig:
-                st.plotly_chart(donut_chart_fig, use_container_width=True)
-            else:
-                st.info("No hay datos de recaudo para mostrar.")
+        # --- COLUMNA 1: GRÁFICO PRINCIPAL DE RECAUDO ---
+        with col1:
+            # Usamos un contenedor para crear un efecto de "tarjeta"
+            with st.container(border=True):
+                st.markdown("<h5>Recaudo General</h5>", unsafe_allow_html=True)
+                conteo_estados_donut = tab2_data.get("donut_data")
+                donut_chart_fig = charts_rodamientos.create_recaudo_donut_chart(
+                    conteo_estados_donut,
+                    estado_seleccionado="TODOS",
+                    show_center_text=False
+                )
+                if donut_chart_fig:
+                    # Quitamos la altura fija para que se ajuste al contenedor
+                    donut_chart_fig.update_layout(height=None, margin=dict(t=10, b=10))
+                    st.plotly_chart(donut_chart_fig, use_container_width=True)
+                else:
+                    st.info("No hay datos de recaudo.")
 
-            st.markdown("---") # Un separador para mayor claridad
+        # --- COLUMNA 2: DETALLE DE CRÉDITOS CON PAGO ---
+        with col2:
+            with st.container(border=True):
+                st.markdown("<h5>Créditos con PAGO</h5>", unsafe_allow_html=True)
+                grouped_data_pago, conteo_data_pago = tab2_data.get("detalle_pago", (None, None))
+                sunburst_pago_fig = charts_rodamientos.create_nested_pie_chart(
+                    grouped_data_pago,
+                    conteo_data_pago,
+                    height=250 # Una altura fija y más pequeña funciona bien aquí
+                )
+                if sunburst_pago_fig:
+                    st.plotly_chart(sunburst_pago_fig, use_container_width=True)
+                else:
+                    st.info("No hay datos de gestión.")
 
-            # --- INICIO: NUEVO GRÁFICO SUNBURST PARA "TODOS" ---
-            st.markdown("<h5>Todos los Créditos</h5>", unsafe_allow_html=True)
+        # --- COLUMNA 3: DETALLE DE CRÉDITOS SIN PAGO ---
+        with col3:
+            with st.container(border=True):
+                st.markdown("<h5>Créditos SIN PAGO</h5>", unsafe_allow_html=True)
+                grouped_data_sin_pago, conteo_data_sin_pago = tab2_data.get("detalle_sin_pago", (None, None))
+                detalle_sin_pago_fig = charts_rodamientos.create_nested_pie_chart(
+                    grouped_data_sin_pago,
+                    conteo_data_sin_pago,
+                    height=250 # La misma altura que el anterior para alinear
+                )
+                if detalle_sin_pago_fig:
+                    st.plotly_chart(detalle_sin_pago_fig, use_container_width=True)
+                else:
+                    st.warning("No hay datos de gestión.")
 
-            # Obtenemos los datos pre-calculados para el estado "TODOS"
+        # --- El resto de tus componentes del tab2 continúan aquí abajo ---
+        st.markdown("---")
+
+        # El gráfico de "Todos los Créditos" puede ir abajo, ocupando todo el ancho
+        st.markdown("<h5>Detalle de Gestión (Todos los Créditos)</h5>", unsafe_allow_html=True)
+        with st.container(border=True): # Opcional: También puedes poner este en una tarjeta
             grouped_data_todos = tab2_data.get("sunburst_initial_grouped")
             conteo_data_todos = tab2_data.get("sunburst_initial_counts")
-            
-            # Reutilizamos la misma función que crea los otros sunbursts
-            sunburst_todos_fig = charts_rodamientos.create_gestion_sunburst_chart(grouped_data_todos, conteo_data_todos,height=450)
-            
+            sunburst_todos_fig = charts_rodamientos.create_nested_pie_chart(
+                grouped_data_todos,
+                conteo_data_todos,
+                height=450
+            )
             if sunburst_todos_fig:
                 st.plotly_chart(sunburst_todos_fig, use_container_width=True)
             else:
                 st.info("No hay datos de gestión para mostrar.")
-            # --- FIN: NUEVO GRÁFICO SUNBURST ---
 
-        # --- Columna Derecha: Gráficos Comparativos Fijos (sin cambios) ---
-        with col_detalles:
-            # Gráfico 1: FIJO para el estado PAGO
-            st.markdown("<h5>Créditos con PAGO</h5>", unsafe_allow_html=True)
-            grouped_data_pago, conteo_data_pago = tab2_data.get("detalle_pago", (None, None))
-            sunburst_pago_fig = charts_rodamientos.create_gestion_sunburst_chart(grouped_data_pago, conteo_data_pago)
-            if sunburst_pago_fig:
-                st.plotly_chart(sunburst_pago_fig, use_container_width=True)
-            else:
-                st.info("No hay datos de gestión para 'PAGO'.")
-            
-            # Gráfico 2: FIJO para el estado SIN PAGO
-            st.markdown("<h5>Créditos SIN PAGO</h5>", unsafe_allow_html=True)
-            grouped_data_sin_pago, conteo_data_sin_pago = tab2_data.get("detalle_sin_pago", (None, None))
-            detalle_sin_pago_fig = charts_rodamientos.create_recaudo_detail_sunburst_chart(grouped_data_sin_pago, conteo_data_sin_pago, "SIN PAGO")
-            if detalle_sin_pago_fig:
-                st.plotly_chart(detalle_sin_pago_fig, use_container_width=True)
-            else:
-                st.warning("No se encontraron datos de detalle para 'SIN PAGO'.")
-                
         st.markdown("---")
 
 
@@ -252,11 +268,11 @@ def main():
             todas_las_columnas_disponibles = [
                 'Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona', 
                 'Dias_Atraso_Final', 'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago', 
-                'Estado_Gestion', 'Cargo_Usuario'
+                'Estado_Gestion', 'Cargo_Usuario','Cantidad_Novedades'
                 # Añade aquí todas las demás columnas que desees
             ]
             
-            columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Dias_Atraso_Final', 'Total_Recaudo', 'Valor_Vencido']
+            columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Cantidad_Novedades']
 
             columnas_seleccionadas = st.multiselect(
                 "Selecciona las columnas a visualizar en la tabla:",
@@ -275,15 +291,13 @@ def main():
                     df_filtrado[columnas_a_mostrar],
                     use_container_width=True,
                     hide_index=True,
-                    disabled=True # La tabla es de solo lectura
+                    disabled=True, # La tabla es de solo lectura
+                    key="editor_busqueda_detallada"
                 )
             else:
                 st.info("No se encontraron créditos que cumplan con los filtros seleccionados.")
-
         else:
-            st.warning("No hay datos procesados para mostrar en la tabla.")
-
-            
+            st.warning("No hay datos procesados para mostrar en la tabla.")            
         
         st.subheader("Seguimiento por Rodammiento")
         # 1. Obtenemos los datos ya agregados
@@ -304,54 +318,93 @@ def main():
             
             # --- Creamos un layout organizado para todos los filtros de la tabla ---
             st.write("#### Filtros de Búsqueda")
-            col_f1, col_f2 = st.columns(2)
+            col_f1, col_f2, col_f3 = st.columns(3)
 
+            # --- FILTRO 1: Estado de Rodamiento (Popover) ---
             with col_f1:
-                # Filtro por Estado de Gestión
-                opcion_gestion = st.radio(
-                    "Filtrar por estado de gestión:",
-                    options=['TODOS', 'CON GESTIÓN', 'SIN GESTIÓN'],
-                    horizontal=True
-                )
+                st.write("Filtrar por rodamiento:")
+                # Aseguramos que agg_rodamiento existe para obtener las opciones
+                if agg_rodamiento is not None and not agg_rodamiento.empty:
+                    rodamiento_options = sorted(agg_rodamiento['Rodamiento'].unique())
+                    with st.popover("Seleccionar Rodamientos...", use_container_width=True):
+                        if st.button("Todos", use_container_width=True, key="select_all_rodamiento"):
+                            for opt in rodamiento_options: st.session_state[f"rod_{opt}"] = True
+                        if st.button("Ninguno", use_container_width=True, key="deselect_all_rodamiento"):
+                            for opt in rodamiento_options: st.session_state[f"rod_{opt}"] = False
+                        st.markdown("---")
+                        for opt in rodamiento_options:
+                            if f"rod_{opt}" not in st.session_state:
+                                st.session_state[f"rod_{opt}"] = True
+                            st.checkbox(opt, key=f"rod_{opt}")
+                    
+                    selected_rodamientos = [opt for opt in rodamiento_options if st.session_state.get(f"rod_{opt}", True)]
+                    st.caption(f"{len(selected_rodamientos)} de {len(rodamiento_options)} seleccionados.")
+                else:
+                    selected_rodamientos = []
+                    st.caption("No hay datos de rodamiento.")
 
+            # --- FILTRO 2: Estado de Gestión (Convertido a Popover) ---
             with col_f2:
-                # <-- CAMBIO: Filtro de Rodamiento ahora es un POPOVER ---
-                st.write("Filtrar por estado de rodamiento:")
-                rodamiento_options = sorted(agg_rodamiento['Rodamiento'].unique())
-
-                with st.popover("Seleccionar Rodamientos...", use_container_width=True):
-                    if st.button("Seleccionar Todos", use_container_width=True, key="select_all_rodamiento"):
-                        for opt in rodamiento_options:
-                            st.session_state[f"rod_{opt}"] = True
-                    if st.button("Deseleccionar Todos", use_container_width=True, key="deselect_all_rodamiento"):
-                        for opt in rodamiento_options:
-                            st.session_state[f"rod_{opt}"] = False
+                st.write("Filtrar por gestión:")
+                gestion_options = ['CON GESTIÓN', 'SIN GESTIÓN']
+                with st.popover("Seleccionar Estados...", use_container_width=True):
+                    if st.button("Todos", use_container_width=True, key="select_all_gestion_rod"):
+                        for opt in gestion_options: st.session_state[f"gestion_rod_{opt}"] = True
+                    if st.button("Ninguno", use_container_width=True, key="deselect_all_gestion_rod"):
+                        for opt in gestion_options: st.session_state[f"gestion_rod_{opt}"] = False
                     st.markdown("---")
-                    for opt in rodamiento_options:
-                        if f"rod_{opt}" not in st.session_state:
-                            st.session_state[f"rod_{opt}"] = True
-                        st.checkbox(opt, key=f"rod_{opt}")
+                    for opt in gestion_options:
+                        if f"gestion_rod_{opt}" not in st.session_state:
+                            st.session_state[f"gestion_rod_{opt}"] = True
+                        st.checkbox(opt, key=f"gestion_rod_{opt}")
 
-                selected_rodamientos = [opt for opt in rodamiento_options if st.session_state.get(f"rod_{opt}", False)]
-                st.caption(f"{len(selected_rodamientos)} de {len(rodamiento_options)} rodamientos seleccionados.")
+                selected_gestiones = [opt for opt in gestion_options if st.session_state.get(f"gestion_rod_{opt}", True)]
+                st.caption(f"{len(selected_gestiones)} de {len(gestion_options)} seleccionados.")
+
+            # --- FILTRO 3: NUEVO filtro de Estado de Pago (Popover) ---
+            with col_f3:
+                st.write("Filtrar por pago:")
+                pago_options = ['PAGO', 'SIN PAGO']
+                with st.popover("Seleccionar Estados...", use_container_width=True):
+                    if st.button("Todos", use_container_width=True, key="select_all_pago_rod"):
+                        for opt in pago_options: st.session_state[f"pago_rod_{opt}"] = True
+                    if st.button("Ninguno", use_container_width=True, key="deselect_all_pago_rod"):
+                        for opt in pago_options: st.session_state[f"pago_rod_{opt}"] = False
+                    st.markdown("---")
+                    for opt in pago_options:
+                        if f"pago_rod_{opt}" not in st.session_state:
+                            st.session_state[f"pago_rod_{opt}"] = True
+                        st.checkbox(opt, key=f"pago_rod_{opt}")
+
+                selected_pagos = [opt for opt in pago_options if st.session_state.get(f"pago_rod_{opt}", True)]
+                st.caption(f"{len(selected_pagos)} de {len(pago_options)} seleccionados.")
 
             # --- Lógica para aplicar los filtros a la tabla ---
-            df_tabla = df_processed_cartera[df_processed_cartera['Rodamiento'].isin(selected_rodamientos)]
-            if opcion_gestion != 'TODOS':
-                df_tabla = df_tabla[df_tabla['Estado_Gestion'] == opcion_gestion]
+            df_tabla = df_processed_cartera.copy() # Empezamos con el dataframe completo
+    
+            # Aplicamos cada filtro si hay selecciones
+            if selected_rodamientos:
+                df_tabla = df_tabla[df_tabla['Rodamiento'].isin(selected_rodamientos)]
             
+            if selected_gestiones:
+                df_tabla = df_tabla[df_tabla['Estado_Gestion'].isin(selected_gestiones)]
+            
+            if selected_pagos:
+                df_tabla = df_tabla[df_tabla['Estado_Pago'].isin(selected_pagos)]
+                    
             # --- Selector de Columnas (sin cambios) ---
             todas_las_columnas_posibles = [
                 'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 
                 'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1',
                 'Dias_Atraso_Final', 'Total_Recaudo', 'Codeudor2', 'Nombre_Codeudor2', 
-                'Telefono_Codeudor2', 'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido'
+                'Telefono_Codeudor2', 'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
+                'Rodamiento_Cartera'
             ]
             columnas_disponibles = [col for col in todas_las_columnas_posibles if col in df_tabla.columns]
             columnas_seleccionadas = st.multiselect(
                 "Selecciona las columnas a mostrar en la tabla:",
                 options=columnas_disponibles,
-                default=['Credito', 'Nombre_Cliente', 'Dias_Atraso_Final', 'Total_Recaudo', 'Valor_Vencido']
+                default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Rodamiento','Meta_Saldo', 'Valor_Vencido']
             )
             
             # --- Visualización de la Tabla (sin cambios) ---
@@ -363,12 +416,14 @@ def main():
                     df_tabla[columnas_seleccionadas], 
                     use_container_width=True,
                     hide_index=True,
-                    disabled=True
+                    disabled=True,
+                    key="editor_detalle_rodamiento"
                 )
             else:
                 st.warning("No se encontraron créditos que coincidan con la selección.")
         else:
             st.info("No hay datos de cartera disponibles para mostrar en la tabla.")
+
 
     with tab3:
         st.header("Resultados de Cumplimiento por Zona y Franja")
@@ -376,9 +431,6 @@ def main():
         df_resultados = charts_resultados.prepare_resultados_data(
             df_cartera_filtrada
         )
-
-        # --- NUEVA VERIFICACIÓN ---
-        # Comprobamos si el dataframe tiene datos Y si la columna 'Zona' existe
         if not df_resultados.empty and 'Zona' in df_resultados.columns:
             
             # 1. Popover para selección múltiple (código sin cambios)
@@ -435,23 +487,73 @@ def main():
             st.markdown("---")
             st.subheader("Tabla de Detalle por Zona y Franja")
             df_tabla = df_resultados[df_resultados['Zona'].isin(zonas_seleccionadas)]
+
             if df_tabla.empty:
                 st.info("No hay datos detallados para las zonas seleccionadas.")
             else:
-                # ... (el resto del código de la tabla se mantiene igual) ...
+                df_tabla['Faltante'] = df_tabla['Meta_Total'] - df_tabla['Recaudo_Total']
+
+                total_meta = df_tabla['Meta_Total'].sum()
+                total_recaudo = df_tabla['Recaudo_Total'].sum()
+                total_faltante = df_tabla['Faltante'].sum()
+
+                if total_meta > 0:
+                    total_cumplimiento = (total_recaudo / total_meta)
+                else:
+                    total_cumplimiento = 0.0
+
                 df_tabla_display = df_tabla.rename(columns={
                     'Franja_Meta': 'Franja',
                     'Meta_Total': 'Meta ($)',
                     'Recaudo_Total': 'Recaudo ($)',
+                    'Faltante': 'Faltante ($)',
                     'Cumplimiento_%': 'Cumplimiento (%)'
                 })
+
+                # Añade la columna 'Regional Cobro' si existe
                 if not df_cartera[df_cartera['Zona'].isin(zonas_seleccionadas)].empty:
-                    regional_cobro_unica = df_cartera[df_cartera['Zona'] == zonas_seleccionadas[0]]['Regional_Cobro'].iloc[0]
-                    df_tabla_display.insert(0, 'Regional Cobro', regional_cobro_unica)
+                    # Usamos try-except para evitar errores si una zona no tiene regional
+                    try:
+                        regional_cobro_unica = df_cartera[df_cartera['Zona'] == zonas_seleccionadas[0]]['Regional_Cobro'].iloc[0]
+                        df_tabla_display.insert(0, 'Regional Cobro', regional_cobro_unica)
+                    except IndexError:
+                        # Si hay un problema, simplemente no añade la columna
+                        pass
+
+                # Formateamos los valores a moneda y porcentaje
                 df_tabla_display['Meta ($)'] = df_tabla_display['Meta ($)'].map('${:,.0f}'.format)
                 df_tabla_display['Recaudo ($)'] = df_tabla_display['Recaudo ($)'].map('${:,.0f}'.format)
+                df_tabla_display['Faltante ($)'] = df_tabla_display['Faltante ($)'].map('${:,.0f}'.format)
                 df_tabla_display['Cumplimiento (%)'] = (df_tabla_display['Cumplimiento (%)'] * 100).map('{:.2f}%'.format)
-                st.dataframe(df_tabla_display, use_container_width=True, hide_index=True)
+
+                # --- CAMBIO CLAVE: DEFINE AQUÍ EL ORDEN DE TUS COLUMNAS ---
+                # Reorganiza los nombres en esta lista como necesites.
+                # Me aseguro de que solo se usen las columnas que realmente existen en el DataFrame.
+                
+                column_order_base = [
+                    'Regional Cobro',
+                    'Zona',
+                    'Franja',
+                    'Meta ($)',
+                    'Recaudo ($)',
+                    'Faltante ($)',
+                    'Cumplimiento (%)'
+                ]
+                
+                # Filtramos la lista para incluir solo las columnas presentes en el dataframe
+                column_order = [col for col in column_order_base if col in df_tabla_display.columns]
+
+                # Mostramos la tabla principal usando el orden definido
+                st.dataframe(df_tabla_display[column_order], use_container_width=True, hide_index=True)
+
+                # --- Totales en métricas separadas ---
+                st.markdown("---")
+                st.subheader("Totales de Zonas Seleccionadas")
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Meta Total", f"${total_meta:,.0f}")
+                col2.metric("Recaudo Total", f"${total_recaudo:,.0f}")
+                col3.metric("Faltante Total", f"${total_faltante:,.0f}")
+                col4.metric("Cumplimiento Total", f"{total_cumplimiento * 100:.2f}%")
         
         else:
             # --- MENSAJE AMIGABLE ---
@@ -476,19 +578,18 @@ def main():
     with tab5:
         st.header("Potenciales Clientes para Retanqueo")
         
-        # 1. Llamamos a la nueva función para obtener los clientes potenciales
-        # Le pasamos el dataframe ya filtrado por la barra lateral
+        # 1. Llamamos a la función con la nueva lógica para obtener los clientes potenciales
         df_potenciales = charts_retanqueos.prepare_retanqueos_data(df_cartera_filtrada)
 
         if df_potenciales.empty:
             st.info("No se encontraron clientes que cumplan con los criterios de retanqueo para los filtros globales seleccionados.")
         else:
-            # --- Creación de los Filtros para la Tabla ---
+            # --- CAMBIO: Creación de Filtros en 3 columnas (se eliminó el de tipo de crédito) ---
             st.write("#### Filtros Específicos")
             col_f1, col_f2, col_f3 = st.columns(3)
 
             with col_f1:
-                # Filtro por Vendedor Activo/Inactivo
+                # Filtro por Vendedor Activo/Inactivo (sin cambios)
                 opciones_vendedor_activo = sorted(df_potenciales["Vendedor_Activo"].unique())
                 filtro_vendedor_activo = st.selectbox(
                     "Estado del Vendedor:",
@@ -497,17 +598,7 @@ def main():
                 )
 
             with col_f2:
-                # Filtro por tipo de crédito (total de cuotas)
-                df_potenciales['Tipo_Credito'] = np.where(df_potenciales['Total_Cuotas'] >= 10, '10 o más cuotas', 'Menos de 10 cuotas')
-                opciones_tipo_credito = ['TODOS', '10 o más cuotas', 'Menos de 10 cuotas']
-                filtro_tipo_credito = st.selectbox(
-                    "Tipo de Crédito:",
-                    options=opciones_tipo_credito,
-                    index=0
-                )
-
-            with col_f3:
-                # Filtro Popover para Nombre_Vendedor
+                # Filtro Popover para Nombre_Vendedor (movido a la segunda columna)
                 vendedores_disponibles = sorted(df_potenciales['Nombre_Vendedor'].unique())
                 with st.popover("Seleccionar Vendedores...", use_container_width=True):
                     if st.button("Seleccionar Todos", key="select_all_vendedores"):
@@ -523,22 +614,47 @@ def main():
                 vendedores_seleccionados = [v for v in vendedores_disponibles if st.session_state.get(f"vend_{v}", True)]
                 st.caption(f"{len(vendedores_seleccionados)} de {len(vendedores_disponibles)} vendedores seleccionados.")
 
-            # --- Aplicar filtros y mostrar la tabla ---
+            with col_f3:
+                # Filtro Popover para Regional_Venta (movido a la tercera columna)
+                if 'Regional_Venta' in df_potenciales.columns:
+                    regionales_disponibles = sorted(df_potenciales['Regional_Venta'].unique())
+                    with st.popover("Seleccionar Regionales...", use_container_width=True):
+                        if st.button("Seleccionar Todas", key="select_all_regionales"):
+                            for regional in regionales_disponibles: st.session_state[f"reg_{regional}"] = True
+                        if st.button("Deseleccionar Todos", key="deselect_all_regionales"):
+                            for regional in regionales_disponibles: st.session_state[f"reg_{regional}"] = False
+                        st.markdown("---")
+                        for regional in regionales_disponibles:
+                            if f"reg_{regional}" not in st.session_state:
+                                st.session_state[f"reg_{regional}"] = True
+                            st.checkbox(regional, key=f"reg_{regional}")
+                    
+                    regionales_seleccionadas = [r for r in regionales_disponibles if st.session_state.get(f"reg_{r}", True)]
+                    st.caption(f"{len(regionales_seleccionadas)} de {len(regionales_disponibles)} regionales seleccionadas.")
+                else:
+                    regionales_seleccionadas = []
+                    st.caption("No hay datos de Regional Venta.")
+
+            # --- CAMBIO: Lógica de filtrado simplificada ---
             df_filtrado_tabla = df_potenciales.copy()
             if filtro_vendedor_activo != 'TODOS':
                 df_filtrado_tabla = df_filtrado_tabla[df_filtrado_tabla['Vendedor_Activo'] == filtro_vendedor_activo]
-            if filtro_tipo_credito != 'TODOS':
-                df_filtrado_tabla = df_filtrado_tabla[df_filtrado_tabla['Tipo_Credito'] == filtro_tipo_credito]
+            # Se eliminó el filtro por 'Tipo_Credito'
             if vendedores_seleccionados:
                 df_filtrado_tabla = df_filtrado_tabla[df_filtrado_tabla['Nombre_Vendedor'].isin(vendedores_seleccionados)]
+            if 'Regional_Venta' in df_filtrado_tabla.columns and regionales_seleccionadas:
+                df_filtrado_tabla = df_filtrado_tabla[df_filtrado_tabla['Regional_Venta'].isin(regionales_seleccionadas)]
                 
-            # --- Selector de Columnas ---
+            # --- Selector de Columnas (con defaults actualizados) ---
             columnas_disponibles_tabla = [
-                'Nombre_Producto', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Direccion','Credito',
-                'Valor_Desembolso', 'Meta_Saldo', 'Cuotas_Restantes'
-                # Puedes añadir más columnas aquí si quieres que estén disponibles para seleccionar
+                'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Direccion',
+                'Valor_Desembolso', 'Meta_Saldo', 'Total_Cuotas', 'Cuotas_Restantes', 'Dias_Atraso_Final',
+                'Vendedor_Activo','Nombre_Vendedor', 'Regional_Venta', 'Nombre_Producto'
             ]
-            columnas_por_defecto_tabla = ['Credito', 'Cedula_Cliente','Nombre_Cliente','Celular', 'Cuotas_Restantes', 'Valor_Desembolso','Nombre_Producto' ]
+            # Columnas por defecto que muestran la información clave de la nueva lógica
+            columnas_por_defecto_tabla = [
+                'Credito', 'Nombre_Cliente','Celular', 'Total_Cuotas', 'Cuotas_Restantes', 'Dias_Atraso_Final', 'Nombre_Vendedor'
+            ]
 
             columnas_seleccionadas = st.multiselect(
                 "Selecciona las columnas a visualizar:",

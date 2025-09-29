@@ -1,6 +1,7 @@
 # ui_components.py
 import streamlit as st
 import pandas as pd
+import numpy as np
 from config import ORDEN_FRANJAS, COLUMNAS_DEFECTO_CARTERA
 
 def sidebar_filters(df):
@@ -15,18 +16,40 @@ def sidebar_filters(df):
         default=sorted(df["Empresa"].unique())
     )
 
-    opciones_franja = [f for f in ORDEN_FRANJAS if f in df["Franja_Meta"].unique()]
-    filters['franjas'] = st.sidebar.multiselect(
-        "Franja de Meta:",
-        options=opciones_franja,
-        default=opciones_franja
-    )
+    # opciones_franja = [f for f in ORDEN_FRANJAS if f in df["Franja_Meta"].unique()]
+    # filters['franjas'] = st.sidebar.multiselect(
+    #     "Franja de Meta:",
+    #     options=opciones_franja,
+    #     default=opciones_franja
+    # )
+
+    if 'Zona' in df.columns:
+        # Reemplazar posibles valores nulos en 'Zona' para evitar errores
+        df['Zona'] = df['Zona'].fillna('SIN ZONA')
+        
+        opciones_zona = sorted(df["Zona"].unique())
+        
+        filters['Zona'] = st.sidebar.multiselect(
+            "Zona:",
+            options=opciones_zona,
+            default=opciones_zona
+        )
     # Filtro para Regional de Cobro
     if 'Regional_Cobro' in df.columns:
+        # ----- INICIO DE LA MODIFICACIÓN -----
+        # Reemplaza los valores nulos (NaN) por 'OTRAS ZONAS'
+        # Usamos .astype(str) para asegurarnos de que 'nan' como texto también se reemplace
+        df['Regional_Cobro'] = df['Regional_Cobro'].replace(np.nan, 'OTRAS ZONAS')
+        df['Regional_Cobro'] = df['Regional_Cobro'].replace('nan', 'OTRAS ZONAS')
+        
+        # Obtenemos las opciones únicas después de haber hecho el reemplazo
+        opciones_regional_cobro = sorted(df["Regional_Cobro"].unique())
+        # ----- FIN DE LA MODIFICACIÓN -----
+
         filters['regional_cobro'] = st.sidebar.multiselect(
             "Regional de Cobro:",
-            options=sorted(df["Regional_Cobro"].unique()),
-            default=sorted(df["Regional_Cobro"].unique())
+            options=opciones_regional_cobro,
+            default=opciones_regional_cobro
         )
 
     # Filtro para Franja de Cartera

@@ -45,17 +45,27 @@ def create_vigencia_sunburst_chart(df_agg):
     """Crea un gráfico de sol (sunburst) mostrando la distribución de cuotas."""
     if df_agg is None or df_agg.empty:
         return None
-    # <-- YA NO HAY PROCESAMIENTO DE DATOS AQUÍ
+
+    color_map = {
+        'VIGENTES': '#90ee90',
+        'VIGENCIA EXPIRADA': '#FF6B6B',
+        'ANTICIPADO': '#add8e6'
+    }
+    
     fig = px.sunburst(
         df_agg,
         path=['Estado_Vigencia_Agrupado', 'Sub_Estado_Vigencia'],
         values='count',
         title="<b>Distribución de Cuotas por Estado de Vigencia</b>",
         color='Estado_Vigencia_Agrupado',
-        template='plotly_white'
+        template='plotly_white',
+        color_discrete_map=color_map
     )
+    
     fig.update_traces(
-        textinfo='label+percent parent', insidetextorientation='radial', sort=True
+        textinfo='label+percent parent', 
+        insidetextorientation='radial', 
+        sort=True
     )
     fig.update_layout(margin=dict(t=50, b=0, l=0, r=0))
     return fig

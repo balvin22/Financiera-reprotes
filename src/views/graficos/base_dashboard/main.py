@@ -11,8 +11,10 @@ import data_processing
 from config import COLUMNAS_DEFECTO_CARTERA
 import numpy as np
 
+st.set_page_config(layout="wide")
+
 def main():
-    st.set_page_config(layout="wide")
+    # st.set_page_config(layout="wide")
     st.title("📊 Dashboard de Información de Cartera")
 
     # --- Carga de Archivo ---
@@ -109,9 +111,7 @@ def main():
                 fig_vigencia_sunburst = charts_metricas.create_vigencia_sunburst_chart(df_agg_vigencia)
                 st.plotly_chart(fig_vigencia_sunburst, use_container_width=True)
             else:
-                st.info("No hay datos de vigencia disponibles.")
-                
-                
+                st.info("No hay datos de vigencia disponibles.")          
 
     with tab2:
         st.header("Seguimientos y Gestión")
@@ -190,9 +190,8 @@ def main():
 
 
         st.header("Análisis y Búsqueda Detallada de Créditos")
-
         # 1. Obtenemos el dataframe completo con toda la información
-        df_completo = tab2_data.get("processed_data_merged")
+        df_completo = tab2_data.get("data_para_tabla")
 
         if df_completo is not None and not df_completo.empty:
             
@@ -244,10 +243,7 @@ def main():
                         
                         st.checkbox(cargo, key=f"cargo_{cargo}")
 
-                # Construimos la lista de cargos seleccionados a partir del estado de los checkboxes
                 filtro_cargos = [cargo for cargo in cargos_disponibles if st.session_state.get(f"cargo_{cargo}", False)]
-                
-                # Mostramos un texto útil que indica cuántos cargos están seleccionados
                 st.caption(f"{len(filtro_cargos)} de {len(cargos_disponibles)} cargos seleccionados.")
                 # --- FIN DEL NUEVO FILTRO DESPLEGABLE ---
 
@@ -263,18 +259,18 @@ def main():
             if filtro_cargos:
                 df_filtrado = df_filtrado[df_filtrado['Cargo_Usuario'].isin(filtro_cargos)]
 
+
             # --- Selector de Columnas para la Tabla ---
             
             # <-- IMPORTANTE: ¡COMPLETA ESTA LISTA CON TODAS LAS COLUMNAS QUE QUIERAS OFRECER!
             todas_las_columnas_disponibles = [
                 'Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
-                'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Cantidad_Novedades',
+                'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Novedades_Por_Cargo',
                 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2'
-                
                 # Añade aquí todas las demás columnas que desees
             ]
             
-            columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Cantidad_Novedades']
+            columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedades_Por_Cargo']
 
             columnas_seleccionadas = st.multiselect(
                 "Selecciona las columnas a visualizar en la tabla:",
@@ -283,7 +279,7 @@ def main():
             )
             
             # --- Visualización de la Tabla ---
-            st.write(f"#### Mostrando {len(df_filtrado)} créditos")
+            st.write(f"#### Mostrando {len(df_filtrado)} registros")
             if not columnas_seleccionadas:
                 st.warning("Por favor, selecciona al menos una columna para visualizar.")
             elif not df_filtrado.empty:
@@ -533,28 +529,28 @@ def main():
                     'Faltante ($)': '${:,.0f}', 'Cumplimiento (%)': '{:.2%}'
                 })
                 styled_df.hide(axis="index")
+                styled_df.set_table_attributes('width="100%" style="table-layout: fixed;"')
+
+                # 2. Dejamos los estilos que aplican a las celdas (th, td).
                 styled_df.set_table_styles([
-                    {'selector': 'table', 'props': [('width', '100%'), ('table-layout', 'fixed')]},
                     {'selector': 'th, td', 'props': [
                         ('padding', '4px 10px'), 
                         ('text-align', 'center')
                     ]}
                 ])
+
                 html_table = styled_df.to_html()
 
-                col_tabla, = st.columns(1)
-                with col_tabla:
-                    if len(df_tabla_display) > 10:
-                        st.markdown(
-
-                            f'<div style="width: 100%; max-height: 450px; overflow-y: auto;">{html_table}</div>',
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(
-                            f'<div style="width: 100%;">{html_table}</div>',
-                            unsafe_allow_html=True
-                        )
+                if len(df_tabla_display) > 10:
+                    st.markdown(
+                        f'<div style="width: 100%; max-height: 450px; overflow-y: auto;">{html_table}</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        f'<div style="width: 100%;">{html_table}</div>',
+                        unsafe_allow_html=True
+                    )
 
                 # --- Totales en métricas separadas (código sin cambios) ---
                 st.markdown("---")
@@ -680,7 +676,5 @@ def main():
                     use_container_width=True,
                     hide_index=True
                 )
-
-
 if __name__ == "__main__":
     main()

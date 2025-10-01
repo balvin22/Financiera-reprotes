@@ -13,7 +13,7 @@ def prepare_tab1_data(df):
     El resultado se guarda en caché para un rendimiento máximo.
     """
     if df.empty:
-        return {} # Devuelve un diccionario vacío si no hay datos
+        return {} # Retornamos un diccionario vacio si no hay datos para mostrar
 
     # --- 1. Datos para: create_regional_bar_chart ---
     agg_regional = df.groupby(['Regional_Venta', 'Franja_Meta']).size().reset_index(name='count')
@@ -53,45 +53,22 @@ def prepare_tab1_data(df):
     # --- 4. Datos para: create_vigencia_sunburst_chart ---
     agg_vigencia = None
     if 'Fecha_Cuota_Vigente' in df.columns:
-        # 1. Copiamos la columna original para no modificarla.
         df_vigencia_copy = df[['Fecha_Cuota_Vigente']].copy()
-        
-        # 2. Convertimos a fecha, los textos como 'ANTICIPADO' se volverán NaT (Not a Time).
         fechas_reales = pd.to_datetime(df_vigencia_copy['Fecha_Cuota_Vigente'], errors='coerce')
         
-        # 3. Creamos la nueva columna 'Estado_Vigencia_Agrupado'
-        # Por defecto, todo lo que sea una fecha válida se marcará como 'VIGENTES'.
         df_vigencia_copy['Estado_Vigencia_Agrupado'] = 'VIGENTES'
-        
-        # 4. Corregimos las etiquetas: Donde no hay una fecha válida (es NaT),
-        # usamos el valor original de la columna (que sería 'ANTICIPADO', 'VIGENCIA EXPIRADA', etc.).
         df_vigencia_copy.loc[fechas_reales.isna(), 'Estado_Vigencia_Agrupado'] = df_vigencia_copy['Fecha_Cuota_Vigente']
 
-        # 5. El resto de tu lógica para sub-estados funciona sobre las fechas ya identificadas.
         df_vigencia_copy['Sub_Estado_Vigencia'] = ''
-        
-        # Máscara para encontrar solo las filas que son 'VIGENTES'
         vigentes_mask = df_vigencia_copy['Estado_Vigencia_Agrupado'] == 'VIGENTES'
-        
+    
         if vigentes_mask.any():
-            # Filtramos las fechas que corresponden a 'VIGENTES'
             fechas_vigentes = fechas_reales[vigentes_mask]
-            
-            current_year, current_month = datetime.now().year, datetime.now().month
-            
-            # Filtramos las fechas vigentes que son del mes y año actual
-            fechas_mes_actual = fechas_vigentes[(fechas_vigentes.dt.year == current_year) & (fechas_vigentes.dt.month == current_month)]
+            subdivision_labels = fechas_vigentes.dt.day.apply(lambda d: f"Día {d}")
+            df_vigencia_copy.loc[vigentes_mask, 'Sub_Estado_Vigencia'] = subdivision_labels
 
-            if not fechas_mes_actual.empty:
-                # Creamos las etiquetas de día solo para las fechas del mes actual
-                subdivision_labels = fechas_mes_actual.dt.day.apply(lambda d: f"Día {d}")
-                df_vigencia_copy.loc[fechas_mes_actual.index, 'Sub_Estado_Vigencia'] = subdivision_labels
-        
-        # 6. Agrupamos para el gráfico. Esto ahora incluirá 'ANTICIPADO' y 'VIGENCIA EXPIRADA' correctamente.
         agg_vigencia = df_vigencia_copy.groupby(['Estado_Vigencia_Agrupado', 'Sub_Estado_Vigencia']).size().reset_index(name='count')
 
-
-    # --- Devuelve un diccionario con todos los dataframes agregados ---
     return {
         "regional": agg_regional,
         "cobro": agg_cobro,
@@ -102,57 +79,63 @@ def prepare_tab1_data(df):
 @st.cache_data
 def prepare_tab2_data(df_cartera, df_novedades):
     """
-    Prepara y cachea todos los datos necesarios para los gráficos del Tab 2.
+    Prepara y cachea todos los datos necesarios para los gráficos y la tabla del Tab 2.
     """
     if df_cartera.empty:
         return {}
 
     df_cartera = df_cartera.copy()
 
-    # --- 1. Datos para el Donut Chart (prepare_donut_data) ---
     df_cartera['Estado_Pago'] = np.where(df_cartera['Total_Recaudo'] > 50000, 'PAGO', 'SIN PAGO')
+    cargos_unicos_por_cliente = df_novedades[['Cedula_Cliente', 'Cargo_Usuario']].drop_duplicates()
     agg_donut = df_cartera['Estado_Pago'].value_counts()
 
-    # --- 2. Datos para los Sunburst Charts (prepare_sunburst_data) ---
-    # Esta es la parte más costosa: el merge. Lo hacemos UNA SOLA VEZ.
+    # --- 2. Datos para los Sunburst Charts (sin cambios) ---
     df_cartera['Estado_Gestion'] = np.where(df_cartera['Cantidad_Novedades'] > 0, 'CON GESTIÓN', 'SIN GESTIÓN')
-    # Obtenemos una tabla con las combinaciones únicas de Cédula y Cargo.
     cargos_unicos_por_cliente = df_novedades[['Cedula_Cliente', 'Cargo_Usuario']].drop_duplicates()
-    # <--- CAMBIO CLAVE 2: Hacemos el merge. Pandas automáticamente creará las filas duplicadas necesarias.
     df_merged = pd.merge(df_cartera, cargos_unicos_por_cliente, on='Cedula_Cliente', how='left')
-    # Rellenamos los NaN para créditos que no tuvieron ninguna gestión.
     df_merged['Cargo_Usuario'] = df_merged['Cargo_Usuario'].fillna('')
     
-    # Pre-cálculo para el primer sunburst
+
     grouped_sunburst_inicial = df_merged.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
     grouped_sunburst_inicial = grouped_sunburst_inicial[~((grouped_sunburst_inicial['Estado_Gestion'] == 'CON GESTIÓN') & (grouped_sunburst_inicial['Cargo_Usuario'] == ''))]
     conteo_gestion_inicial = df_merged['Estado_Gestion'].value_counts()
-
-    # --- 3. Datos para el Gráfico de Rodamiento ---
     agg_rodamiento = None
     if 'Rodamiento' in df_cartera.columns and 'Estado_Gestion' in df_cartera.columns:
-        # <-- CAMBIO: Agrupamos por 'Rodamiento' y 'Estado_Gestion'
         agg_rodamiento = df_cartera.groupby(['Rodamiento', 'Estado_Gestion']).size().reset_index(name='Número de Cuentas')
-        # <-- CAMBIO: La lógica de ordenar por franjas ya no es necesaria y se elimina
         
     df_pago = df_merged[df_merged['Estado_Pago'] == 'PAGO']
     df_sin_pago = df_merged[df_merged['Estado_Pago'] == 'SIN PAGO']
 
-    # Agrupamos los subconjuntos UNA SOLA VEZ
     grouped_detalle_pago = df_pago.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
     conteo_detalle_pago = df_pago['Estado_Gestion'].value_counts()
     
     grouped_detalle_sin_pago = df_sin_pago.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
     conteo_detalle_sin_pago = df_sin_pago['Estado_Gestion'].value_counts()
+    if not df_novedades.empty:
+        novedades_por_cargo_cliente = df_novedades.groupby(['Cedula_Cliente', 'Cargo_Usuario']).size().reset_index(name='Novedades_Por_Cargo')
+        df_para_tabla = pd.merge(
+            df_merged,
+            novedades_por_cargo_cliente,
+            on=['Cedula_Cliente', 'Cargo_Usuario'],
+            how='left'
+        )
+
+        # 4.3. Rellenamos los valores nulos con 0 y convertimos a entero.
+        df_para_tabla['Novedades_Por_Cargo'] = df_para_tabla['Novedades_Por_Cargo'].fillna(0).astype(int)
+    else:
+        # Si no hay novedades, creamos la columna con ceros para evitar errores.
+        df_para_tabla = df_merged.copy()
+        df_para_tabla['Novedades_Por_Cargo'] = 0
 
     return {
         "donut_data": agg_donut,
         "sunburst_initial_grouped": grouped_sunburst_inicial,
         "sunburst_initial_counts": conteo_gestion_inicial,
         "rodamiento_data": agg_rodamiento,
-        # Devolvemos los nuevos resultados pre-calculados
         "detalle_pago": (grouped_detalle_pago, conteo_detalle_pago),
         "detalle_sin_pago": (grouped_detalle_sin_pago, conteo_detalle_sin_pago),
         "processed_cartera": df_cartera,
-        "processed_data_merged": df_merged
+        "processed_data_merged": df_merged, 
+        "data_para_tabla": df_para_tabla
     }

@@ -127,10 +127,8 @@ def create_rodamiento_bar_chart(df_agg):
         y='Número de Cuentas',
         # <-- CAMBIO: El color ahora se basa en el estado de la gestión
         color='Estado_Gestion', 
-        # <-- CAMBIO: Título actualizado
         title="<b>Cuentas por Rodamiento y Estado de Gestión</b>", 
         text_auto=True,
-        # Opcional: puedes definir colores específicos para 'CON GESTIÓN' y 'SIN GESTIÓN'
         color_discrete_map={
             'CON GESTIÓN': '#1f77b4',  # Azul
             'SIN GESTIÓN': '#d62728'   # Rojo
@@ -144,7 +142,6 @@ def create_rodamiento_bar_chart(df_agg):
         font_color='#EAEAEA',
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        # <-- CAMBIO: Título de la leyenda actualizado
         legend_title_text='Gestión', 
         showlegend=True
     )

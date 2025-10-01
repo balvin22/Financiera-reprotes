@@ -478,8 +478,13 @@ def main():
                             meta = data_row['Meta_Total'].iloc[0]
                             recaudo = data_row['Recaudo_Total'].iloc[0]
                             cumplimiento = data_row['Cumplimiento_%'].iloc[0]
+                            faltante = meta - recaudo
                             fig_gauge = charts_resultados.create_gauge_chart(
-                                value=cumplimiento, meta=meta, recaudo=recaudo, title=titulo_graficos
+                                value=cumplimiento, 
+                                meta=meta, 
+                                recaudo=recaudo, 
+                                faltante=faltante,
+                                title=titulo_graficos
                             )
                             st.plotly_chart(fig_gauge, use_container_width=True)
                         else:
@@ -509,15 +514,8 @@ def main():
 
                 df_tabla_display = df_tabla.rename(columns={
                     'Franja_Meta': 'Franja', 'Meta_Total': 'Meta ($)', 'Recaudo_Total': 'Recaudo ($)',
-                    'Faltante': 'Faltante ($)', 'Cumplimiento_%': 'Cumplimiento (%)'
+                    'Faltante': 'Faltante ($)', 'Cumplimiento_%': 'Cumplimiento (%)','Regional_Cobro': 'Regional Cobro'
                 })
-
-                if not df_cartera[df_cartera['Zona'].isin(zonas_seleccionadas)].empty:
-                    try:
-                        regional_cobro_unica = df_cartera[df_cartera['Zona'] == zonas_seleccionadas[0]]['Regional_Cobro'].iloc[0]
-                        df_tabla_display.insert(0, 'Regional Cobro', regional_cobro_unica)
-                    except IndexError:
-                        pass
 
                 column_order_base = [
                     'Regional Cobro', 'Zona', 'Franja', 'Meta ($)', 
@@ -525,36 +523,38 @@ def main():
                 ]
                 column_order = [col for col in column_order_base if col in df_tabla_display.columns]
                 df_tabla_display = df_tabla_display[column_order]
-
-                # --- 2. APLICACIÓN DE ESTILOS Y FORMATO ---
-                
-                # Usamos una función lambda para pasar tanto el valor de la celda (x)
-                # como la meta del día a nuestra función de estilo.
                 styled_df = df_tabla_display.style.applymap(
                     lambda x: charts_resultados.style_cumplimiento_bar(x, expected_compliance), 
                     subset=['Cumplimiento (%)']
                 )
-                
+
                 styled_df.format({
                     'Meta ($)': '${:,.0f}', 'Recaudo ($)': '${:,.0f}',
                     'Faltante ($)': '${:,.0f}', 'Cumplimiento (%)': '{:.2%}'
                 })
-                
                 styled_df.hide(axis="index")
-
-                # --- 3. MOSTRAR TABLA CON SCROLL CONDICIONAL ---
+                styled_df.set_table_styles([
+                    {'selector': 'table', 'props': [('width', '100%'), ('table-layout', 'fixed')]},
+                    {'selector': 'th, td', 'props': [
+                        ('padding', '4px 10px'), 
+                        ('text-align', 'center')
+                    ]}
+                ])
                 html_table = styled_df.to_html()
 
-                # Si hay más de 10 filas, envolvemos la tabla en un div con scroll
-                if len(df_tabla_display) > 10:
-                    st.markdown(
-                        # Establecemos una altura máxima y activamos el scroll vertical
-                        f'<div style="max-height: 500px; overflow-y: auto;">{html_table}</div>',
-                        unsafe_allow_html=True
-                    )
-                else:
-                    # Si no, la mostramos de forma normal
-                    st.markdown(html_table, unsafe_allow_html=True)
+                col_tabla, = st.columns(1)
+                with col_tabla:
+                    if len(df_tabla_display) > 10:
+                        st.markdown(
+
+                            f'<div style="width: 100%; max-height: 450px; overflow-y: auto;">{html_table}</div>',
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(
+                            f'<div style="width: 100%;">{html_table}</div>',
+                            unsafe_allow_html=True
+                        )
 
                 # --- Totales en métricas separadas (código sin cambios) ---
                 st.markdown("---")
@@ -658,11 +658,11 @@ def main():
             columnas_disponibles_tabla = [
                 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Direccion',
                 'Valor_Desembolso', 'Meta_Saldo', 'Total_Cuotas', 'Cuotas_Restantes', 'Dias_Atraso_Final',
-                'Vendedor_Activo','Nombre_Vendedor', 'Regional_Venta', 'Nombre_Producto'
+                'Vendedor_Activo','Nombre_Vendedor', 'Regional_Venta', 'Nombre_Producto','Cuotas_Pagadas'
             ]
             # Columnas por defecto que muestran la información clave de la nueva lógica
             columnas_por_defecto_tabla = [
-                'Credito', 'Nombre_Cliente','Celular', 'Total_Cuotas', 'Cuotas_Restantes', 'Dias_Atraso_Final', 'Nombre_Vendedor'
+                'Credito', 'Nombre_Cliente','Celular', 'Total_Cuotas','Cuotas_Pagadas', 'Cuotas_Restantes', 'Dias_Atraso_Final', 'Nombre_Vendedor'
             ]
 
             columnas_seleccionadas = st.multiselect(

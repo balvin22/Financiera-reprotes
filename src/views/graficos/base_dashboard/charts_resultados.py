@@ -9,25 +9,25 @@ import plotly.graph_objects as go
 def prepare_resultados_data(df_filtrado_global):
     """
     Toma los datos de cartera YA FILTRADOS GLOBALMENTE y los agrupa
-    por Zona y Franja_Meta para calcular los totales.
+    por Zona y Franja_Meta para calcular los totales, conservando la Regional.
     """
-    # 1. Ya no necesitamos filtrar por empresa o regional aquí.
-    # Los datos ya vienen listos.
-    
-    # 2. Seleccionamos solo las franjas que nos interesan
     franjas_a_usar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']
     df_para_grupo = df_filtrado_global[df_filtrado_global['Franja_Meta'].isin(franjas_a_usar)]
 
     if df_para_grupo.empty:
         return pd.DataFrame()
 
-    # 3. Agrupamos y sumamos
-    resultados = df_para_grupo.groupby(['Zona', 'Franja_Meta']).agg(
+    if 'Regional_Cobro' in df_para_grupo.columns:
+        group_by_cols = ['Regional_Cobro', 'Zona', 'Franja_Meta']
+    else:
+        group_by_cols = ['Zona', 'Franja_Meta']
+
+    resultados = df_para_grupo.groupby(group_by_cols).agg(
         Meta_Total=('Meta_$', 'sum'),
         Recaudo_Total=('Total_Recaudo', 'sum')
     ).reset_index()
 
-    # 4. Calculamos el cumplimiento (sin cambios)
+    # (El cálculo de cumplimiento no cambia)
     resultados['Cumplimiento_%'] = 0.0
     mascara_meta_valida = resultados['Meta_Total'] > 0
     resultados.loc[mascara_meta_valida, 'Cumplimiento_%'] = (
@@ -68,12 +68,11 @@ def aggregate_selected_zones(df_resultados, selected_zonas):
 
 # --- VERSIÓN MEJORADA DE LA FUNCIÓN DEL GRÁFICO ---
 @st.cache_data(ttl=3600)
-def create_gauge_chart(value, meta, recaudo, title):
+def create_gauge_chart(value, meta, recaudo, faltante, title):
     """
     Crea un gráfico de velocímetro (medidor) que se adapta
     automáticamente al tema claro u oscuro de Streamlit y muestra hasta un 130%.
     """
-    # ... (la detección del tema y la definición de colores se mantienen igual) ...
     theme_base = st.get_option("theme.base")
     if theme_base == "dark":
         text_color, bar_color, border_color = '#EAEAEA', '#2B2B2B', 'gray'
@@ -88,7 +87,6 @@ def create_gauge_chart(value, meta, recaudo, title):
         title={'text': title, 'font': {'size': 18, 'color': text_color}},
         number={'suffix': "%", 'font': {'size': 28, 'color': text_color}},
         gauge={
-            # <-- CAMBIO 1: Ampliamos el rango del eje hasta 130
             'axis': {'range': [None, 130], 'tickwidth': 1, 'tickcolor': text_color},
             'bar': {'color': bar_color, 'thickness': 0.3},
             'bgcolor': "rgba(0,0,0,0)",
@@ -100,26 +98,25 @@ def create_gauge_chart(value, meta, recaudo, title):
                 {'range': [40, 60], 'color': '#fdff9b'},
                 {'range': [60, 80], 'color': '#90ee90'},
                 {'range': [80, 100], 'color': '#28a745'},
-                # <-- CAMBIO 2: Añadimos un nuevo escalón de color para el sobrecumplimiento
-                {'range': [100, 130], 'color': '#6f42c1'} # Un color morado para indicar "extra"
+                {'range': [100, 130], 'color': '#6f42c1'}
             ],
-            # <-- CAMBIO 3: Ponemos una línea gruesa justo en el 100% para marcar la meta
             'threshold': {'line': {'color': text_color, 'width': 4}, 'thickness': 1.0, 'value': 100}
         }))
 
-    # ... (el resto de la función, incluyendo update_layout y add_annotation, se mantiene igual) ...
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         font={'color': text_color, 'family': "Arial"},
-        margin=dict(l=20, r=20, t=40, b=10),
+        margin=dict(l=20, r=20, t=40, b=20),
         height=300
     )
+    
+    # CAMBIO 2: Añadimos el Faltante al texto de la anotación
     fig.add_annotation(
-        x=0.5, y=0.15,
-        text=f"Meta: ${meta:,.0f}<br>Recaudo: ${recaudo:,.0f}",
+        x=0.5, y=0.05,
+        text=f"Meta: ${meta:,.0f}<br>Recaudo: ${recaudo:,.0f}<br><b>Faltante: ${faltante:,.0f}</b>",
         showarrow=False,
-        font=dict(size=12, color=text_color)
+        font=dict(size=11, color=text_color)
     )
 
     return fig
@@ -127,12 +124,12 @@ def create_gauge_chart(value, meta, recaudo, title):
 def calculate_expected_compliance():
     """
     Calcula el porcentaje de cumplimiento esperado para el día actual
-    basado en el ciclo de cobro (5 de un mes al 4 del siguiente).
-    Retorna el valor esperado (ej: 0.83) y las fechas del periodo.
+    basado en un periodo ESTANDARIZADO de 30.5 días.
+    El ciclo sigue siendo del 5 de un mes al 4 del siguiente.
     """
     today = date.today()
     
-    # Define el inicio y fin del periodo de cobro actual
+    # 1. Se calcula el inicio y fin del periodo para saber cuántos días han pasado
     if today.day >= 5:
         start_date = today.replace(day=5)
         end_date = (today + relativedelta(months=1)).replace(day=4)
@@ -140,11 +137,11 @@ def calculate_expected_compliance():
         start_date = (today - relativedelta(months=1)).replace(day=5)
         end_date = today.replace(day=4)
 
-    total_days_in_period = (end_date - start_date).days + 1
-    # Asegurarse de que los días transcurridos no superen el total del período
-    elapsed_days = min((today - start_date).days + 1, total_days_in_period)
+    elapsed_days = min((today - start_date).days + 1, 30.5) # No puede pasar de 30.5
+    total_days_in_period = 30.5
     
-    if total_days_in_period > 0 and elapsed_days > 0:
+    # 3. Se calcula el cumplimiento esperado con la base fija
+    if elapsed_days > 0:
         expected_compliance = elapsed_days / total_days_in_period
     else:
         expected_compliance = 0.0
@@ -155,27 +152,35 @@ def calculate_expected_compliance():
 def style_cumplimiento_bar(cumplimiento_real, expected_compliance):
     """
     Aplica un estilo de barra de progreso comparando el valor real
-    con el esperado (que se pasa como argumento).
+    con el esperado, y normaliza visualmente los valores > 100%.
     """
-    # La lógica de cálculo de fecha se movió a la función anterior.
-    # Ahora solo determina el color y crea el estilo.
-
+    # --- 1. Lógica de Color Mejorada ---
     diferencia = expected_compliance - cumplimiento_real
     
-    if cumplimiento_real >= expected_compliance:
-        color = '#28a745'  # Verde: Cumplido o superado
-    elif diferencia <= 0.20:  # Amarillo: Cerca (hasta 20% por debajo)
+    # <-- NUEVA LÓGICA DE COLOR PARA SOBRECUMPLIMIENTO -->
+    if cumplimiento_real >= 1:
+        color = "#06301a" 
+    elif cumplimiento_real >= expected_compliance:
+        color = '#28a745'  # Verde
+    elif diferencia <= 0.20:  # Amarillo
         color = '#ffc107'
-    else:  # Rojo: Lejos
+    else:  # Rojo
         color = '#dc3545'
 
-    valor_barra = cumplimiento_real * 100
+    # --- 2. Normalización del Valor para la Barra Visual ---
+    valor_barra_numerico = cumplimiento_real * 100
     
-    style = (
-        f"background: linear-gradient(90deg, {color} {valor_barra}%, #55555530 {valor_barra}%); "
-        "color: white; "
-        "text-shadow: 1px 1px 2px black; "
-        "font-weight: bold;"
-    )
+    # <-- CAMBIO CLAVE: El valor para el gradiente se limita a un máximo de 100 -->
+    valor_barra_visual = min(valor_barra_numerico, 100)
     
-    return style
+    # --- 3. Creación de Estilos ---
+    styles = {
+        'background': f"linear-gradient(90deg, {color} {valor_barra_visual}%, #33333330 {valor_barra_visual}%)",
+        'color': 'white',
+        'text-shadow': '1px 1px 2px black',
+        'font-weight': 'bold',
+        'text-align': 'center',
+        'padding': '5px 0'
+    }
+    return '; '.join([f'{key}: {value}' for key, value in styles.items()])
+

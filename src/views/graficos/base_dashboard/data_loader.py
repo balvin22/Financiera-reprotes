@@ -24,7 +24,7 @@ def load_and_process_data(uploaded_file):
         "Meta_Intereses", "Meta_Saldo", "Meta_%", "Meta_$", "Meta_T.R_%",
         "Meta_T.R_$", "Cuotas_Pagadas", "Fecha_Cuota_Atraso", "Primera_Cuota_Mora",
         "Valor_Cuota_Atraso", "Valor_Vencido", "Dias_Atraso_Final",
-        "Franja_Meta_Final", "Franja_Cartera_Final", "Rodamiento_Cartera",
+        "Franja_Meta_Final", "Franja_Cartera_Final", "Rodamiento_Cartera","Valor_Cuota_Vigente",
         "Recaudo_Anticipado", "Recaudo_Meta", "Total_Recaudo", "Fecha_Cuota_Vigente"
     ]
     

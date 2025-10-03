@@ -115,14 +115,8 @@ def main():
 
     with tab2:
         st.header("Seguimientos y Gestión")
-
-        # --- NUEVO LAYOUT DE TRES COLUMNAS ---
-        # Usamos pesos para que la columna principal sea más ancha [Principal, Detalle, Detalle]
         col1, col2, col3 = st.columns([2, 1.2, 1.2])
-
-        # --- COLUMNA 1: GRÁFICO PRINCIPAL DE RECAUDO ---
         with col1:
-            # Usamos un contenedor para crear un efecto de "tarjeta"
             with st.container(border=True):
                 st.markdown("<h5>Recaudo General</h5>", unsafe_allow_html=True)
                 conteo_estados_donut = tab2_data.get("donut_data")
@@ -138,7 +132,6 @@ def main():
                 else:
                     st.info("No hay datos de recaudo.")
 
-        # --- COLUMNA 2: DETALLE DE CRÉDITOS CON PAGO ---
         with col2:
             with st.container(border=True):
                 st.markdown("<h5>Créditos con PAGO</h5>", unsafe_allow_html=True)
@@ -153,7 +146,6 @@ def main():
                 else:
                     st.info("No hay datos de gestión.")
 
-        # --- COLUMNA 3: DETALLE DE CRÉDITOS SIN PAGO ---
         with col3:
             with st.container(border=True):
                 st.markdown("<h5>Créditos SIN PAGO</h5>", unsafe_allow_html=True)
@@ -185,28 +177,21 @@ def main():
                 st.plotly_chart(sunburst_todos_fig, use_container_width=True)
             else:
                 st.info("No hay datos de gestión para mostrar.")
-
         st.markdown("---")
-
 
         st.header("Análisis y Búsqueda Detallada de Créditos")
         # 1. Obtenemos el dataframe completo con toda la información
         df_completo = tab2_data.get("data_para_tabla")
 
         if df_completo is not None and not df_completo.empty:
-            
-            # --- Creación de los Filtros en Columnas ---
             st.write("#### Filtros de Búsqueda")
-            col_f1, col_f2, col_f3 = st.columns(3)
-
+            col_f1, col_f2, col_f3, col_f4 = st.columns(4)
             with col_f1:
-                # Filtro por Estado de Pago
                 filtro_pago = st.selectbox(
                     "Estado de Pago:",
                     options=['TODOS', 'PAGO', 'SIN PAGO'],
                     index=0
                 )
-
             with col_f2:
                 # Filtro por Estado de Gestión
                 filtro_gestion = st.selectbox(
@@ -214,10 +199,8 @@ def main():
                     options=['TODOS', 'CON GESTIÓN', 'SIN GESTIÓN'],
                     index=0
                 )
-
             with col_f3:
                 st.write("Cargo que Gestionó:") # Etiqueta fuera del popover
-
                 # Obtenemos los cargos disponibles
                 cargos_disponibles = sorted(df_completo['Cargo_Usuario'].unique())
                 
@@ -232,7 +215,6 @@ def main():
                     if st.button("Deseleccionar Todos", use_container_width=True, key="deselect_all_cargos"):
                         for cargo in cargos_disponibles:
                             st.session_state[f"cargo_{cargo}"] = False
-                    
                     st.markdown("---")
 
                     # Creamos un checkbox para cada cargo disponible
@@ -245,33 +227,48 @@ def main():
 
                 filtro_cargos = [cargo for cargo in cargos_disponibles if st.session_state.get(f"cargo_{cargo}", False)]
                 st.caption(f"{len(filtro_cargos)} de {len(cargos_disponibles)} cargos seleccionados.")
-                # --- FIN DEL NUEVO FILTRO DESPLEGABLE ---
+                
+            with col_f4:
+                st.write("Excluir créditos gestionados por:")
+                with st.popover("Seleccionar para Excluir...", use_container_width=True):
+                    if st.button("Excluir Todos", use_container_width=True, key="exclude_all_cargos"):
+                        for cargo in cargos_disponibles:
+                            st.session_state[f"exclude_cargo_{cargo}"] = True
+                    if st.button("No Excluir Ninguno", use_container_width=True, key="exclude_none_cargos"):
+                        for cargo in cargos_disponibles:
+                            st.session_state[f"exclude_cargo_{cargo}"] = False
+                    st.markdown("---")
+                    for cargo in cargos_disponibles:
+                        # El estado por defecto es NO excluir (False)
+                        if f"exclude_cargo_{cargo}" not in st.session_state:
+                            st.session_state[f"exclude_cargo_{cargo}"] = False
+                        st.checkbox(cargo, key=f"exclude_cargo_{cargo}")
 
-            # --- Lógica para aplicar los filtros en cadena ---
+                cargos_a_excluir = [cargo for cargo in cargos_disponibles if st.session_state.get(f"exclude_cargo_{cargo}", False)]
+                st.caption(f"{len(cargos_a_excluir)} cargos vetados.")    
+                
             df_filtrado = df_completo.copy() # Empezamos con todos los datos
-
+            if cargos_a_excluir:
+                 # Paso 1: Identificar todos los créditos únicos que fueron tocados por los cargos a excluir
+                creditos_a_excluir_set = set(df_filtrado[df_filtrado['Cargo_Usuario'].isin(cargos_a_excluir)]['Credito'].unique())
+                # Paso 2: Eliminar TODAS las filas de esos créditos del dataframe
+                if creditos_a_excluir_set:
+                    df_filtrado = df_filtrado[~df_filtrado['Credito'].isin(creditos_a_excluir_set)]            
             if filtro_pago != 'TODOS':
                 df_filtrado = df_filtrado[df_filtrado['Estado_Pago'] == filtro_pago]
-            
             if filtro_gestion != 'TODOS':
                 df_filtrado = df_filtrado[df_filtrado['Estado_Gestion'] == filtro_gestion]
-
             if filtro_cargos:
                 df_filtrado = df_filtrado[df_filtrado['Cargo_Usuario'].isin(filtro_cargos)]
-
-
-            # --- Selector de Columnas para la Tabla ---
-            
-            # <-- IMPORTANTE: ¡COMPLETA ESTA LISTA CON TODAS LAS COLUMNAS QUE QUIERAS OFRECER!
+                
             todas_las_columnas_disponibles = [
                 'Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
                 'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Novedades_Por_Cargo',
-                'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2'
+                'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2', 
+                'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente'
                 # Añade aquí todas las demás columnas que desees
             ]
-            
             columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedades_Por_Cargo']
-
             columnas_seleccionadas = st.multiselect(
                 "Selecciona las columnas a visualizar en la tabla:",
                 options=todas_las_columnas_disponibles,
@@ -295,7 +292,8 @@ def main():
             else:
                 st.info("No se encontraron créditos que cumplan con los filtros seleccionados.")
         else:
-            st.warning("No hay datos procesados para mostrar en la tabla.")            
+            st.warning("No hay datos procesados para mostrar en la tabla.")
+                        
         
         st.subheader("Seguimiento por Rodammiento")
         # 1. Obtenemos los datos ya agregados

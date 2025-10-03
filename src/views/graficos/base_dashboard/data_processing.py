@@ -83,20 +83,19 @@ def prepare_tab2_data(df_cartera, df_novedades):
     """
     if df_cartera.empty:
         return {}
-
-    df_cartera = df_cartera.copy()
+    df_cartera = df_cartera[df_cartera['Valor_Cuota_Vigente'] != 'ANTICIPADO'].copy()
+    if df_cartera.empty:
+        return {}
 
     df_cartera['Estado_Pago'] = np.where(df_cartera['Total_Recaudo'] > 50000, 'PAGO', 'SIN PAGO')
     cargos_unicos_por_cliente = df_novedades[['Cedula_Cliente', 'Cargo_Usuario']].drop_duplicates()
     agg_donut = df_cartera['Estado_Pago'].value_counts()
 
-    # --- 2. Datos para los Sunburst Charts (sin cambios) ---
     df_cartera['Estado_Gestion'] = np.where(df_cartera['Cantidad_Novedades'] > 0, 'CON GESTIÓN', 'SIN GESTIÓN')
     cargos_unicos_por_cliente = df_novedades[['Cedula_Cliente', 'Cargo_Usuario']].drop_duplicates()
     df_merged = pd.merge(df_cartera, cargos_unicos_por_cliente, on='Cedula_Cliente', how='left')
     df_merged['Cargo_Usuario'] = df_merged['Cargo_Usuario'].fillna('')
     
-
     grouped_sunburst_inicial = df_merged.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
     grouped_sunburst_inicial = grouped_sunburst_inicial[~((grouped_sunburst_inicial['Estado_Gestion'] == 'CON GESTIÓN') & (grouped_sunburst_inicial['Cargo_Usuario'] == ''))]
     conteo_gestion_inicial = df_merged['Estado_Gestion'].value_counts()
@@ -120,11 +119,8 @@ def prepare_tab2_data(df_cartera, df_novedades):
             on=['Cedula_Cliente', 'Cargo_Usuario'],
             how='left'
         )
-
-        # 4.3. Rellenamos los valores nulos con 0 y convertimos a entero.
         df_para_tabla['Novedades_Por_Cargo'] = df_para_tabla['Novedades_Por_Cargo'].fillna(0).astype(int)
     else:
-        # Si no hay novedades, creamos la columna con ceros para evitar errores.
         df_para_tabla = df_merged.copy()
         df_para_tabla['Novedades_Por_Cargo'] = 0
 

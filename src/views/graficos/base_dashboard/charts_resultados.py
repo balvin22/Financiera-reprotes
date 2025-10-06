@@ -4,12 +4,14 @@ import pandas as pd
 from datetime import date
 from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
+import io
+
 
 @st.cache_data(ttl=3600)  # Aumentar TTL
 def prepare_resultados_data(df_filtrado_global):
     """
     Toma los datos de cartera YA FILTRADOS GLOBALMENTE y los agrupa
-    por Zona y Franja_Meta para calcular los totales, conservando la Regional.
+    por Zona y Franja_Meta, incluyendo los nuevos campos para el quinto gráfico.
     """
     franjas_a_usar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']
     df_para_grupo = df_filtrado_global[df_filtrado_global['Franja_Meta'].isin(franjas_a_usar)]
@@ -17,23 +19,29 @@ def prepare_resultados_data(df_filtrado_global):
     if df_para_grupo.empty:
         return pd.DataFrame()
 
+    # Asegurarnos de que las columnas existan, si no, las creamos con 0
+    if 'Total_Recaudo_Sin_Anti' not in df_para_grupo.columns:
+        df_para_grupo['Total_Recaudo_Sin_Anti'] = 0
+    if 'Meta_T.R_$' not in df_para_grupo.columns:
+        df_para_grupo['Meta_T.R_$'] = 0
+
+    group_by_cols = ['Zona', 'Franja_Meta']
     if 'Regional_Cobro' in df_para_grupo.columns:
-        group_by_cols = ['Regional_Cobro', 'Zona', 'Franja_Meta']
-    else:
-        group_by_cols = ['Zona', 'Franja_Meta']
+        group_by_cols.insert(0, 'Regional_Cobro')
 
     resultados = df_para_grupo.groupby(group_by_cols).agg(
         Meta_Total=('Meta_$', 'sum'),
-        Recaudo_Total=('Total_Recaudo', 'sum')
+        Recaudo_Total=('Total_Recaudo', 'sum'),
+        # NUEVO: Agregamos los campos para el quinto velocímetro
+        Recaudo_Sin_Anti_Total=('Total_Recaudo_Sin_Anti', 'sum'),
+        Recaudo_Meta_Total=('Meta_T.R_$', 'sum')
     ).reset_index()
 
-    # (El cálculo de cumplimiento no cambia)
     resultados['Cumplimiento_%'] = 0.0
     mascara_meta_valida = resultados['Meta_Total'] > 0
     resultados.loc[mascara_meta_valida, 'Cumplimiento_%'] = (
         resultados.loc[mascara_meta_valida, 'Recaudo_Total'] / resultados.loc[mascara_meta_valida, 'Meta_Total']
     )
-
     return resultados
 
 st.cache_data(ttl=3600)
@@ -44,26 +52,26 @@ def aggregate_selected_zones(df_resultados, selected_zonas):
     if not selected_zonas or df_resultados.empty:
         return pd.DataFrame()
 
-    # 1. Filtramos para quedarnos solo con las zonas que el usuario eligió
     df_filtrado = df_resultados[df_resultados['Zona'].isin(selected_zonas)]
 
     if df_filtrado.empty:
         return pd.DataFrame()
 
-    # 2. Agrupamos por Franja y sumamos los totales de las zonas seleccionadas
     df_agregado = df_filtrado.groupby('Franja_Meta').agg(
         Meta_Total=('Meta_Total', 'sum'),
-        Recaudo_Total=('Recaudo_Total', 'sum')
+        Recaudo_Total=('Recaudo_Total', 'sum'),
+        # NUEVO: Agregamos los campos para el quinto velocímetro
+        Recaudo_Sin_Anti_Total=('Recaudo_Sin_Anti_Total', 'sum'),
+        Recaudo_Meta_Total=('Recaudo_Meta_Total', 'sum')
     ).reset_index()
 
-    # 3. Recalculamos el cumplimiento con los nuevos totales agregados
     df_agregado['Cumplimiento_%'] = 0.0
     mascara_meta_valida = df_agregado['Meta_Total'] > 0
     df_agregado.loc[mascara_meta_valida, 'Cumplimiento_%'] = (
         df_agregado.loc[mascara_meta_valida, 'Recaudo_Total'] / df_agregado.loc[mascara_meta_valida, 'Meta_Total']
     )
-
     return df_agregado
+
 
 
 # --- VERSIÓN MEJORADA DE LA FUNCIÓN DEL GRÁFICO ---
@@ -184,3 +192,20 @@ def style_cumplimiento_bar(cumplimiento_real, expected_compliance):
     }
     return '; '.join([f'{key}: {value}' for key, value in styles.items()])
 
+def generate_excel_download_link(df, filename, button_label):
+    """
+    Genera un botón de Streamlit para descargar un DataFrame como un archivo Excel.
+    """
+    output = io.BytesIO()
+    # Usamos el motor 'openpyxl' que es el estándar moderno
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Datos')
+    
+    excel_data = output.getvalue()
+
+    st.download_button(
+        label=button_label,
+        data=excel_data,
+        file_name=filename,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

@@ -25,13 +25,13 @@ def load_and_process_data(uploaded_file):
         "Meta_T.R_$", "Cuotas_Pagadas", "Fecha_Cuota_Atraso", "Primera_Cuota_Mora",
         "Valor_Cuota_Atraso", "Valor_Vencido", "Dias_Atraso_Final",
         "Franja_Meta_Final", "Franja_Cartera_Final", "Rodamiento_Cartera","Valor_Cuota_Vigente",
-        "Recaudo_Anticipado", "Recaudo_Meta", "Total_Recaudo", "Fecha_Cuota_Vigente"
+        "Recaudo_Anticipado", "Recaudo_Meta", "Total_Recaudo", "Fecha_Cuota_Vigente","Total_Recaudo_Sin_Anti"
     ]
     
     cols_novedades = [
         "Fecha_Novedad", "Cedula_Cliente", "Nombre_Cliente", "Usuario_Novedad",
         "Nombre_Usuario", "Cargo_Usuario", "Celular_Corporativo", "Tipo_Novedad",
-        "Novedad", "Fecha_Compromiso", "Valor"
+        "Novedad", "Fecha_Compromiso", "Valor","Empresa"
     ]
 
     try:

@@ -7,3 +7,4 @@ pyinstaller
 pyinstaller-hooks-contrib
 # Linea para empaquetar los graficos de la base:
 # pyinstaller --onefile --add-data "src;src" --collect-all streamlit --windowed --name "MiDashboard" lanzador.py
+# pyinstaller --name MiDashboard --onefile --windowed --add-data "dashboard_franjas.py;." --collect-data streamlit run_franjas.py

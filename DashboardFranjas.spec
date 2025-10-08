@@ -1,16 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_all
 
 datas = [('franjas_dashboard.py', '.')]
-datas += collect_data_files('streamlit')
+binaries = []
+hiddenimports = []
+tmp_ret = collect_all('streamlit')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['run_franjas.py'],
     pathex=[],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -26,7 +29,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='MiDashboard',
+    name='DashboardFranjas',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

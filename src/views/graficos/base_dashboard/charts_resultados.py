@@ -8,6 +8,7 @@ import io
 
 
 @st.cache_data(ttl=3600)  # Aumentar TTL
+
 def prepare_resultados_data(df_filtrado_global):
     """
     Toma los datos de cartera YA FILTRADOS GLOBALMENTE y los agrupa
@@ -78,53 +79,51 @@ def aggregate_selected_zones(df_resultados, selected_zonas):
 @st.cache_data(ttl=3600)
 def create_gauge_chart(value, meta, recaudo, faltante, title):
     """
-    Crea un gráfico de velocímetro (medidor) que se adapta
-    automáticamente al tema claro u oscuro de Streamlit y muestra hasta un 130%.
+    Crea un gráfico de medidor con texto detallado en una anotación inferior.
     """
-    theme_base = st.get_option("theme.base")
-    if theme_base == "dark":
-        text_color, bar_color, border_color = '#EAEAEA', '#2B2B2B', 'gray'
-    else:
-        text_color, bar_color, border_color = '#333333', '#EEEEEE', 'darkgray'
+    try:
+        theme_base = st.get_option("theme.base")
+        text_color = '#EAEAEA' if theme_base == "dark" else '#333333'
+    except Exception:
+        text_color = '#EAEAEA'
 
     gauge_value = value * 100 if value is not None else 0
 
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=gauge_value,
-        title={'text': title, 'font': {'size': 18, 'color': text_color}},
-        number={'suffix': "%", 'font': {'size': 28, 'color': text_color}},
+        title={'text': title, 'font': {'size': 20, 'color': text_color}},
+        number={'suffix': "%", 'font': {'size': 32, 'color': text_color}},
         gauge={
-            'axis': {'range': [None, 130], 'tickwidth': 1, 'tickcolor': text_color},
-            'bar': {'color': bar_color, 'thickness': 0.3},
+            'axis': {'range': [0, 130]},
+            'bar': {'color': "rgba(0,0,0,0.3)", 'thickness': 0.15},
             'bgcolor': "rgba(0,0,0,0)",
             'borderwidth': 1,
-            'bordercolor': border_color,
+            'bordercolor': "gray",
             'steps': [
-                {'range': [0, 20], 'color': '#dc3545'},
-                {'range': [20, 40], 'color': '#ffc107'},
-                {'range': [40, 60], 'color': '#fdff9b'},
-                {'range': [60, 80], 'color': '#90ee90'},
-                {'range': [80, 100], 'color': '#28a745'},
-                {'range': [100, 130], 'color': '#6f42c1'}
+                {'range': [0, 40], 'color': '#d9534f'},
+                {'range': [40, 60], 'color': '#f0ad4e'},
+                {'range': [60, 80], 'color': '#e6f5c9'},
+                {'range': [80, 100], 'color': '#5cb85c'},
+                {'range': [100, 130], 'color': '#663399'}
             ],
-            'threshold': {'line': {'color': text_color, 'width': 4}, 'thickness': 1.0, 'value': 100}
+            'threshold': {'line': {'color': text_color, 'width': 3}, 'thickness': 0.9, 'value': 100}
         }))
+
+    # --- ESTA ES LA PARTE CLAVE ---
+    # Si esta anotación existe, el texto NO puede superponerse con el porcentaje.
+    fig.add_annotation(
+        x=0.5, y=0.05,
+        text=f"Meta: ${meta:,.0f}<br>Recaudo: ${recaudo:,.0f}<br>Faltante: ${faltante:,.0f}",
+        showarrow=False,
+        font=dict(size=12, color=text_color),
+        align="center"
+    )
 
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font={'color': text_color, 'family': "Arial"},
-        margin=dict(l=20, r=20, t=40, b=20),
-        height=300
-    )
-    
-    # CAMBIO 2: Añadimos el Faltante al texto de la anotación
-    fig.add_annotation(
-        x=0.5, y=0.05,
-        text=f"Meta: ${meta:,.0f}<br>Recaudo: ${recaudo:,.0f}<br><b>Faltante: ${faltante:,.0f}</b>",
-        showarrow=False,
-        font=dict(size=11, color=text_color)
+        height=280,
+        margin=dict(l=10, r=10, t=50, b=10)
     )
 
     return fig

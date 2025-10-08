@@ -265,7 +265,7 @@ def main():
                 'Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
                 'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Novedades_Por_Cargo',
                 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2', 
-                'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente'
+                'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Empresa'
                 # Añade aquí todas las demás columnas que desees
             ]
             columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedades_Por_Cargo']
@@ -393,7 +393,7 @@ def main():
                 'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 
                 'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 
                 'Telefono_Codeudor2','Dias_Atraso_Final', 'Total_Recaudo',  'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
-                'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion'
+                'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Empresa'
                 
             ]
             columnas_disponibles = [col for col in todas_las_columnas_posibles if col in df_tabla.columns]
@@ -488,27 +488,26 @@ def main():
                 
                 # --- NUEVO: Quinto gráfico para Recaudo Sin Anticipos ---
                 st.markdown("---")
-                st.subheader("Cumplimiento General Recaudo (Sin Anticipos)")
+                 # --- Gráfico para Recaudo Sin Anticipos ---
+            st.markdown("---")
+            st.subheader("Cumplimiento General Recaudo (Sin Anticipos)")
 
-                # Sumamos los totales de las nuevas columnas para las zonas seleccionadas
-                total_recaudo_sin_anti = datos_agregados['Recaudo_Sin_Anti_Total'].sum()
-                total_recaudo_meta = datos_agregados['Recaudo_Meta_Total'].sum()
-                
-                # Calculamos el cumplimiento y el faltante para este nuevo indicador
-                cumplimiento_sin_anti = (total_recaudo_sin_anti / total_recaudo_meta) if total_recaudo_meta > 0 else 0
-                faltante_sin_anti = total_recaudo_meta - total_recaudo_sin_anti
+            total_recaudo_sin_anti = datos_agregados['Recaudo_Sin_Anti_Total'].sum()
+            total_recaudo_meta = datos_agregados['Recaudo_Meta_Total'].sum()
+            
+            cumplimiento_sin_anti = (total_recaudo_sin_anti / total_recaudo_meta) if total_recaudo_meta > 0 else 0
+            faltante_sin_anti = total_recaudo_meta - total_recaudo_sin_anti
 
-                # Centramos el gráfico usando columnas
-                _ , col_center, _ = st.columns([1, 2, 1]) 
-                with col_center:
-                    fig_gauge_sin_anti = charts_resultados.create_gauge_chart(
-                        value=cumplimiento_sin_anti,
-                        meta=total_recaudo_meta,
-                        recaudo=total_recaudo_sin_anti,
-                        faltante=faltante_sin_anti,
-                        title=f"Total Recaudo ({titulo_graficos})"
-                    )
-                    st.plotly_chart(fig_gauge_sin_anti, use_container_width=True)
+            _ , col_center, _ = st.columns([1, 2, 1]) 
+            with col_center:
+                fig_gauge_sin_anti = charts_resultados.create_gauge_chart(
+                    value=cumplimiento_sin_anti,
+                    meta=total_recaudo_meta,
+                    recaudo=total_recaudo_sin_anti,
+                    faltante=faltante_sin_anti,
+                    title=f"Total Recaudo ({titulo_graficos})"
+                )
+                st.plotly_chart(fig_gauge_sin_anti, use_container_width=True)
 
 
             # --- MODIFICADO: Tablas de Detalle por Franja con Descarga ---

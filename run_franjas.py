@@ -1,4 +1,3 @@
-# run.py (versión final con apertura de navegador)
 import sys
 import os
 import multiprocessing

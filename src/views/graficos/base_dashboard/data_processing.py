@@ -179,5 +179,36 @@ def prepare_tab3_data(df):
     resultados.loc[mask_meta_valida, 'Cumplimiento_%'] = (
         resultados.loc[mask_meta_valida, 'Recaudo_Total'] / resultados.loc[mask_meta_valida, 'Meta_Total']
     )
-    
     return resultados
+
+@st.cache_data
+def prepare_tab4_data(df_cartera, df_novedades):
+    return {
+        "cartera_para_mostrar": df_cartera,
+        "novedades_para_mostrar": df_novedades
+    }
+
+@st.cache_data
+def prepare_tab5_data(df_cartera):
+    df = df_cartera.copy()
+    numeric_cols = ['Total_Cuotas', 'Cuotas_Pagadas', 'Dias_Atraso_Final']
+    for col in numeric_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df.dropna(subset=numeric_cols, inplace=True)
+    df_potenciales = df[df['Dias_Atraso_Final'] <= 30].copy()
+    df_potenciales = df_potenciales[df_potenciales['Total_Cuotas'] >= 6].copy()
+    df_potenciales['Cuotas_Restantes'] = df_potenciales['Total_Cuotas'] - df_potenciales['Cuotas_Pagadas']
+    condicion_A = (
+        (df_potenciales['Total_Cuotas'].between(6, 8)) &
+        (df_potenciales['Cuotas_Restantes'].between(1, 2))
+    )
+    condicion_B = (
+        (df_potenciales['Total_Cuotas'] > 8) &
+        (df_potenciales['Cuotas_Restantes'].between(1, 4))
+    )
+    df_final = df_potenciales[condicion_A | condicion_B]
+    return {
+        "potenciales_retanqueo": df_final
+    }
+
+    

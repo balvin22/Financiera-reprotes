@@ -56,7 +56,7 @@ def render(tab2_data):
     st.markdown("---")
 
     # El gráfico de "Todos los Créditos" puede ir abajo, ocupando todo el ancho
-    st.markdown("<h5>Detalle de Gestión (Todos los Créditos)</h5>", unsafe_allow_html=True)
+    st.markdown("<h5>Detalle de Todos los Créditos</h5>", unsafe_allow_html=True)
     with st.container(border=True): # Opcional: También puedes poner este en una tarjeta
         grouped_data_todos = tab2_data.get("sunburst_initial_grouped")
         conteo_data_todos = tab2_data.get("sunburst_initial_counts")
@@ -71,7 +71,7 @@ def render(tab2_data):
             st.info("No hay datos de gestión para mostrar.")
     st.markdown("---")
 
-    st.header("Análisis y Búsqueda Detallada de Créditos")
+    st.header("Búsqueda Detallada de Créditos con Gestiones")
     # 1. Obtenemos el dataframe completo con toda la información
     df_completo = tab2_data.get("data_para_tabla")
 
@@ -157,7 +157,7 @@ def render(tab2_data):
             'Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
             'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Novedades_Por_Cargo',
             'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2', 
-            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Empresa'
+            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Empresa', 'Meta_$'
             # Añade aquí todas las demás columnas que desees
         ]
         columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedades_Por_Cargo']
@@ -191,16 +191,12 @@ def render(tab2_data):
     # 1. Obtenemos los datos ya agregados
     agg_rodamiento = tab2_data.get("rodamiento_data")
     if agg_rodamiento is not None and not agg_rodamiento.empty:
-        # <-- CAMBIO: Ya no creamos el multiselect aquí.
-        # El gráfico ahora recibe los datos completos y sin filtrar.
         fig_rodamiento = charts_rodamientos.create_rodamiento_bar_chart(agg_rodamiento)
         if fig_rodamiento:
             st.plotly_chart(fig_rodamiento, use_container_width=True)
-
-    # --- Tabla de Detalle con Filtros Mejorados ---
     st.markdown("---")
-    st.subheader("🔍 Detalle de Créditos")
-
+    
+    st.subheader("Detalle de Créditos con Rodamientos")
     df_processed_cartera = tab2_data.get("processed_cartera") # Asegúrate de que este es el dataframe correcto
     if df_processed_cartera is not None and not df_processed_cartera.empty:
         
@@ -280,12 +276,11 @@ def render(tab2_data):
         if selected_pagos:
             df_tabla = df_tabla[df_tabla['Estado_Pago'].isin(selected_pagos)]
                 
-        # --- Selector de Columnas (sin cambios) ---
         todas_las_columnas_posibles = [
             'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 
             'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 
             'Telefono_Codeudor2','Dias_Atraso_Final', 'Total_Recaudo',  'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
-            'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Empresa'
+            'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Empresa', 'Meta_$'
             
         ]
         columnas_disponibles = [col for col in todas_las_columnas_posibles if col in df_tabla.columns]

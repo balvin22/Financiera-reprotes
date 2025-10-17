@@ -13,7 +13,7 @@ def prepare_tab1_data(df):
     El resultado se guarda en caché para un rendimiento máximo.
     """
     if df.empty:
-        return {} # Retornamos un diccionario vacio si no hay datos para mostrar
+        return {}
 
     # --- 1. Datos para: create_regional_bar_chart ---
     agg_regional = df.groupby(['Regional_Venta', 'Franja_Meta']).size().reset_index(name='count')
@@ -210,5 +210,111 @@ def prepare_tab5_data(df_cartera):
     return {
         "potenciales_retanqueo": df_final
     }
-
     
+@st.cache_data
+def prepare_tab6_data(df_cartera, df_novedades):
+    """
+    Prepara los datos para el reporte de Call Centers en el Tab 6.
+    Incluye la unión con Novedades para obtener Tipo_Novedad en el detalle.
+    """
+    if df_cartera.empty:
+        return {}
+    
+    df = df_cartera.copy()
+    
+    # --- PROCESAMIENTO DE NOVEDADES PARA OBTENER EL ÚLTIMO TIPO_NOVEDAD ---
+    # Esto es crucial para la nueva tabla de detalle
+    df_novedades_limpia = df_novedades.copy()
+    if not df_novedades_limpia.empty:
+        # Asegurarse de que Cedula_Cliente y Tipo_Novedad existan para la unión
+        if 'Cedula_Cliente' in df_novedades_limpia.columns and 'Tipo_Novedad' in df_novedades_limpia.columns:
+            # Ordenamos por fecha de novedad (si existe) y luego por Cedula para tomar la más reciente
+            if 'Fecha_Novedad' in df_novedades_limpia.columns:
+                df_novedades_limpia = df_novedades_limpia.sort_values('Fecha_Novedad', ascending=False)
+            
+            # Dejamos la última novedad por cliente (eliminar duplicados manteniendo el primero)
+            df_last_novedad = df_novedades_limpia.drop_duplicates(subset=['Cedula_Cliente'], keep='first')[['Cedula_Cliente', 'Tipo_Novedad']]
+            
+            # Unimos el tipo de novedad al DataFrame de cartera
+            df = df.merge(df_last_novedad, on='Cedula_Cliente', how='left')
+            # Rellenamos los NaN generados por el merge para clientes sin novedad
+            df['Tipo_Novedad'] = df['Tipo_Novedad'].fillna('SIN NOVEDAD')
+        else:
+            df['Tipo_Novedad'] = 'COLUMNA NO DISPONIBLE'
+    else:
+        df['Tipo_Novedad'] = 'SIN NOVEDAD'
+
+    # --- Parte 1: Limpieza de Datos ---
+    columnas_numericas = ['Meta_General', 'Meta_$', 'Recaudo_Meta']
+    for col in columnas_numericas:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        else:
+            df[col] = 0
+
+    # Se añaden las columnas usadas para filtros de la tabla de detalle (Tipo_Novedad incluida)
+    columnas_texto = [
+        'Zona', 'Cobrador', 'Call_Center_Apoyo', 'Nombre_Call_Center', 
+        'Franja_Meta', 'Rodamiento', 'Estado_Gestion', 'Estado_Pago', 'Tipo_Novedad'
+    ]
+    for col in columnas_texto:
+        if col in df.columns:
+            # Aseguramos que Tipo_Novedad también se pase a mayúsculas y se limpie
+            df[col] = df[col].astype(str).str.strip().str.upper().replace('NAN', 'SIN DATO')
+        else:
+            df[col] = 'SIN DATO'
+
+
+    # --- Parte 2 y 3: Procesar Metas de Call Centers (sin cambios) ---
+    df_cl1_4 = df[df['Zona'].isin(['CL1', 'CL2', 'CL3', 'CL4']) & (df['Franja_Meta'] == 'AL DIA')]
+    if not df_cl1_4.empty:
+        agg_cl1_4 = df_cl1_4.groupby(['Zona', 'Cobrador']).agg(**{
+            'META_$': pd.NamedAgg(column='Meta_General', aggfunc='sum'),
+            'Recaudo_Meta': pd.NamedAgg(column='Recaudo_Meta', aggfunc='sum')
+        }).reset_index()
+        agg_cl1_4.rename(columns={'Zona': 'CALL_CENTER', 'Cobrador': 'NOMBRE'}, inplace=True)
+    else:
+        agg_cl1_4 = pd.DataFrame(columns=['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta'])
+
+    df_cl5_9 = df[df['Call_Center_Apoyo'].isin(['CL5', 'CL6', 'CL7', 'CL8', 'CL9'])]
+    if not df_cl5_9.empty:
+        agg_cl5_9 = df_cl5_9.groupby(['Call_Center_Apoyo', 'Nombre_Call_Center']).agg(**{
+            'META_$': pd.NamedAgg(column='Meta_$', aggfunc='sum'),
+            'Recaudo_Meta': pd.NamedAgg(column='Recaudo_Meta', aggfunc='sum')
+        }).reset_index()
+        agg_cl5_9.rename(columns={'Call_Center_Apoyo': 'CALL_CENTER', 'Nombre_Call_Center': 'NOMBRE'}, inplace=True)
+    else:
+        agg_cl5_9 = pd.DataFrame(columns=['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta'])
+
+    # --- Parte 4: Combinar y Formatear Reporte de Metas (sin cambios) ---
+    df_reporte = pd.concat([agg_cl1_4, agg_cl5_9], ignore_index=True)
+
+    if df_reporte.empty:
+        reporte_display = pd.DataFrame()
+        reporte_raw = pd.DataFrame()
+    else:
+        df_reporte['Faltante'] = df_reporte['META_$'] - df_reporte['Recaudo_Meta']
+        df_reporte['Cumplimiento'] = np.where(df_reporte['META_$'] > 0, df_reporte['Recaudo_Meta'] / df_reporte['META_$'], 0)
+        reporte_raw = df_reporte.copy()
+        reporte_display = df_reporte.copy()
+        reporte_display['Cumplimiento_%'] = reporte_display['Cumplimiento'].apply(lambda x: f"{format(x * 100, '.2f')}%".replace('.', ','))
+        columnas_moneda = ['META_$', 'Recaudo_Meta', 'Faltante']
+        for col in columnas_moneda:
+            reporte_display[col] = reporte_display[col].apply(lambda x: f"$ {int(round(x, 0)):,}".replace(',', '.'))
+        columnas_finales_display = ['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta', 'Faltante', 'Cumplimiento_%']
+        reporte_display = reporte_display[columnas_finales_display].sort_values(by='CALL_CENTER').reset_index(drop=True)
+        columnas_finales_raw = ['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta', 'Faltante', 'Cumplimiento']
+        reporte_raw = reporte_raw[columnas_finales_raw].sort_values(by='CALL_CENTER').reset_index(drop=True)
+
+    df_call_centers_only = df[df['CALL_CENTER_FILTRO'] != 'SIN CALL CENTER']
+    
+    agg_rodamiento = pd.DataFrame() # DataFrame vacío por defecto
+    if not df_call_centers_only.empty and 'Rodamiento' in df_call_centers_only.columns:
+        agg_rodamiento = df_call_centers_only.groupby('Rodamiento').size().reset_index(name='count')
+        
+    return {
+        "reporte_display": reporte_display,
+        "reporte_raw": reporte_raw,
+        "rodamiento_data": agg_rodamiento,
+        "cartera_detallada_call_center": df # 'df' ahora incluye la columna 'Tipo_Novedad'
+    }

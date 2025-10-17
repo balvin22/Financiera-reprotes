@@ -2,12 +2,10 @@ import streamlit as st
 import charts_resultados 
 from datetime import date
 
-
 def render(tab3_data):    
     """
     Renderiza el contenido de la pestaña "Resultados".
-    """
-    
+    """    
     st.header("Resultados de Cumplimiento por Zona y Franja")
     # Usamos el dataframe pre-procesado
     if tab3_data is not None and not tab3_data.empty:
@@ -35,7 +33,6 @@ def render(tab3_data):
         if df_tabla_base.empty:
             st.warning("Selecciona al menos una zona para ver los resultados.")
         else:
-            # 3. Agregación de datos (sin cambios)
             datos_agregados_charts = df_tabla_base.groupby('Franja_Meta').agg(
                 Meta_Total=('Meta_Total', 'sum'),
                 Recaudo_Total=('Recaudo_Total', 'sum'),
@@ -95,7 +92,7 @@ def render(tab3_data):
 
             # --- Sección de Tablas de Detalle ---
             st.markdown("---")
-            st.header("Tabla de Detalle por Zona y Franja")
+            st.header("Tabla de Detalle por Zona")
 
             expected_compliance, start_date, end_date = charts_resultados.calculate_expected_compliance()
             st.info(f"**Meta de cumplimiento para hoy ({date.today().strftime('%d/%m/%Y')}): {expected_compliance:.2%}** | "

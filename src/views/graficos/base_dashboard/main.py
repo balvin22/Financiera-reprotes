@@ -3,7 +3,8 @@ from datetime import date
 import streamlit as st
 import data_loader
 import ui_components
-from tabs import tab_metricas, tab_seguimientos, tab_resultados, tab_datos_detallados, tab_comercial
+from tabs import tab_metricas, tab_seguimientos, tab_resultados, tab_datos_detallados, tab_comercial,tab_call_center
+import src.views.graficos.base_dashboard.charts_resultados as chart_resultados
 import data_processing
 import filtering
 
@@ -20,7 +21,8 @@ def main():
     df_cartera, df_novedades = data_loader.load_and_process_data(uploaded_file) 
     if df_cartera is None:
         return
-    # 2. Mostrar filtros en la barra lateral
+    
+    df_cartera = filtering.add_call_center_column(df_cartera)
     filters = ui_components.sidebar_filters(df_cartera)
     df_cartera_filtrada, df_novedades_filtrada = filtering.apply_main_filters(
         df_cartera, df_novedades, filters
@@ -30,13 +32,16 @@ def main():
     tab3_data = data_processing.prepare_tab3_data(df_cartera_filtrada)
     tab4_data = data_processing.prepare_tab4_data(df_cartera_filtrada, df_novedades_filtrada)
     tab5_data = data_processing.prepare_tab5_data(df_cartera_filtrada)
+    tab6_data = data_processing.prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada)
+    
     # 4. Renderizar la página principal
-    tab1, tab2, tab3, tab4,tab5 = st.tabs([
+    tab1, tab2, tab3, tab4,tab5, tab6 = st.tabs([
         "📈 Métricas Principales",
         "🔄 Seguimientos",
         "🎯 Resultados",
         "📄 Datos Detallados", 
-        "🛍️ Comercial"
+        "🛍️ Comercial",
+        "👩🏻‍💻 Call Centers"
     ])
 
     with tab1:
@@ -53,5 +58,9 @@ def main():
 
     with tab5:
         tab_comercial.render(tab5_data)
+        
+    with tab6:
+        tab_call_center.render(tab6_data, chart_resultados)    
+        
 if __name__ == "__main__":
     main()

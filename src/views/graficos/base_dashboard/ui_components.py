@@ -15,13 +15,14 @@ def sidebar_filters(df):
         options=sorted(df["Empresa"].unique()),
         default=sorted(df["Empresa"].unique())
     )
-
-    # opciones_franja = [f for f in ORDEN_FRANJAS if f in df["Franja_Meta"].unique()]
-    # filters['franjas'] = st.sidebar.multiselect(
-    #     "Franja de Meta:",
-    #     options=opciones_franja,
-    #     default=opciones_franja
-    # )
+    
+    if 'CALL_CENTER_FILTRO' in df.columns:
+        opciones_call_center = sorted(df['CALL_CENTER_FILTRO'].unique())
+        filters['call_center'] = st.sidebar.multiselect(
+            "Call Center:",
+            options=opciones_call_center,
+            default=opciones_call_center # Por defecto, seleccionamos todo.
+        )
 
     if 'Zona' in df.columns:
         # Reemplazar posibles valores nulos en 'Zona' para evitar errores
@@ -62,7 +63,6 @@ def sidebar_filters(df):
     
 
     # ... Añade aquí los demás multiselect para Regional, Gestor, Rodamiento ...
-
     filters['novedades'] = st.sidebar.radio(
         "Novedades:",
         ("Todos", "Con Novedades", "Sin Novedades")

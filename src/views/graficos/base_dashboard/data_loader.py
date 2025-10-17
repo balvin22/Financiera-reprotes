@@ -21,7 +21,7 @@ def load_and_process_data(uploaded_file):
         "Lider_Zona", "Codeudor1", "Total_Cuotas", "Nombre_Codeudor1",
         "Telefono_Codeudor1", "Ciudad_Codeudor1", "Codeudor2", "Telefono_Codeudor2",
         "Ciudad_Codeudor2", "Valor_Cuota", "Dias_Atraso", "Franja_Cartera",
-        "Meta_Intereses", "Meta_Saldo", "Meta_%", "Meta_$", "Meta_T.R_%",
+        "Meta_Intereses", "Meta_Saldo", "Meta_%", "Meta_$", "Meta_T.R_%","Meta_General",
         "Meta_T.R_$", "Cuotas_Pagadas", "Fecha_Cuota_Atraso", "Primera_Cuota_Mora",
         "Valor_Cuota_Atraso", "Valor_Vencido", "Dias_Atraso_Final","Fecha_Ultimo_pago","Rango_Ultimo_pago",
         "Franja_Meta_Final", "Franja_Cartera_Final", "Rodamiento_Cartera","Valor_Cuota_Vigente",

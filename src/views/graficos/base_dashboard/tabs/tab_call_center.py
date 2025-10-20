@@ -58,6 +58,14 @@ def render(tab6_data, charts_resultados):
             expected_compliance
         )
         
+        
+        if len(df_raw) > 7:
+            st.markdown(f'<div style="width: 100%; max-height: 350px; overflow-y: auto;">{html_table}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(html_table, unsafe_allow_html=True)            
+        st.markdown("---")
+
+            
         st.subheader("Totales Generales de Call Centers")
         total_meta = df_raw['META_$'].sum()
         total_recaudo = df_raw['Recaudo_Meta'].sum()
@@ -66,12 +74,7 @@ def render(tab6_data, charts_resultados):
         col2_m.metric("Recaudo Total", f"${total_recaudo:,.0f}")
         col3_m.metric("Faltante Total", f"${total_meta - total_recaudo:,.0f}")
         col4_m.metric("Cumplimiento Total", f"{(total_recaudo / total_meta) if total_meta > 0 else 0:.2%}")
-        st.markdown("---")
-        
-        if len(df_raw) > 7:
-            st.markdown(f'<div style="width: 100%; max-height: 350px; overflow-y: auto;">{html_table}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(html_table, unsafe_allow_html=True)
+
 
     st.markdown("---")
 

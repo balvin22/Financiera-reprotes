@@ -152,10 +152,11 @@ def render(tab6_data, charts_resultados):
 
     # Selección de Columnas y Visualización de la Tabla
     todas_las_columnas_posibles = [
-        'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona', 
+        'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Gestor', 'Zona','Telefono_Gestor', 
         'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 'Telefono_Codeudor2',
-        'Dias_Atraso_Final', 'Total_Recaudo', 'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
-        'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Meta_$', 'Tipo_Novedad'
+        'Dias_Atraso_Final', 'Total_Recaudo', 'Nombre_Producto', 'Total_Cuotas', 'Valor_Vencido','Rodamiento','Valor_Cuota_Vigente',
+        'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion','Tipo_Novedad','Novedad','Franja_Meta','Fecha_Cuota_Vigente',
+        'Valor_Cuota','Cuotas_Pagadas','Cobrador','Telefono_Cobrador'
     ]
     columnas_disponibles = [col for col in todas_las_columnas_posibles if col in df_tabla.columns]
     
@@ -163,7 +164,8 @@ def render(tab6_data, charts_resultados):
     columnas_seleccionadas = st.multiselect(
         "Selecciona las columnas a mostrar en la tabla:",
         options=columnas_disponibles,
-        default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Rodamiento','Tipo_Novedad', 'Meta_Saldo', 'Valor_Vencido'],
+        default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Franja_Meta','Dias_Atraso_Final', 'Rodamiento', 'Valor_Vencido',
+                 'Total_Recaudo','Fecha_Cuota_Vigente','Valor_Cuota_Vigente','Valor_Cuota'],
         key="multiselect_detalle_call"
     )
     

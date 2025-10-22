@@ -154,13 +154,13 @@ def render(tab2_data):
             df_filtrado = df_filtrado[df_filtrado['Cargo_Usuario'].isin(filtro_cargos)]
             
         todas_las_columnas_disponibles = [
-            'Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
+            'Empresa','Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
             'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Novedades_Por_Cargo',
             'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2', 
-            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Empresa', 'Meta_$'
+            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Meta_$','Novedad'
             # Añade aquí todas las demás columnas que desees
         ]
-        columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedades_Por_Cargo']
+        columnas_por_defecto = ['Empresa','Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedades_Por_Cargo']
         columnas_seleccionadas = st.multiselect(
             "Selecciona las columnas a visualizar en la tabla:",
             options=todas_las_columnas_disponibles,
@@ -277,7 +277,7 @@ def render(tab2_data):
             df_tabla = df_tabla[df_tabla['Estado_Pago'].isin(selected_pagos)]
                 
         todas_las_columnas_posibles = [
-            'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 
+            'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Novedad',
             'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 
             'Telefono_Codeudor2','Dias_Atraso_Final', 'Total_Recaudo',  'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
             'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Empresa', 'Meta_$'

@@ -111,18 +111,54 @@ def prepare_tab2_data(df_cartera, df_novedades):
     
     grouped_detalle_sin_pago = df_sin_pago.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
     conteo_detalle_sin_pago = df_sin_pago['Estado_Gestion'].value_counts()
+
+    # --- INICIO DE LA MODIFICACIÓN ---
     if not df_novedades.empty:
-        novedades_por_cargo_cliente = df_novedades.groupby(['Cedula_Cliente', 'Cargo_Usuario']).size().reset_index(name='Novedades_Por_Cargo')
-        df_para_tabla = pd.merge(
+        # 1. Calcular el conteo de novedades por cargo (como antes)
+        novedades_por_cargo_cliente = df_novedades.groupby(
+            ['Cedula_Cliente', 'Cargo_Usuario']
+        ).size().reset_index(name='Novedades_Por_Cargo')
+        
+        # 2. Unir el conteo a df_merged (que está a nivel Credito/Cargo)
+        df_con_conteo = pd.merge(
             df_merged,
             novedades_por_cargo_cliente,
             on=['Cedula_Cliente', 'Cargo_Usuario'],
             how='left'
         )
-        df_para_tabla['Novedades_Por_Cargo'] = df_para_tabla['Novedades_Por_Cargo'].fillna(0).astype(int)
+        df_con_conteo['Novedades_Por_Cargo'] = df_con_conteo['Novedades_Por_Cargo'].fillna(0).astype(int)
+
+        # 3. Preparar las columnas de detalle de novedades
+        cols_detalle = ['Cedula_Cliente', 'Cargo_Usuario']
+        
+        # Añadir 'Novedad' si existe, si no, crear una columna para el merge
+        if 'Novedad' not in df_novedades.columns:
+            df_novedades['Novedad'] = 'N/A'
+        cols_detalle.append('Novedad')
+
+        # Añadir 'Tipo_Novedad' si existe, si no, crear una columna para el merge
+        if 'Tipo_Novedad' not in df_novedades.columns:
+            df_novedades['Tipo_Novedad'] = 'N/A'
+        cols_detalle.append('Tipo_Novedad')
+
+        # 4. Unir los detalles de CADA novedad. Esto expandirá el DataFrame.
+        df_para_tabla = pd.merge(
+            df_con_conteo,
+            df_novedades[cols_detalle], 
+            on=['Cedula_Cliente', 'Cargo_Usuario'],
+            how='left' 
+        )
+        
+        df_para_tabla['Novedad'] = df_para_tabla['Novedad'].fillna('')
+        df_para_tabla['Tipo_Novedad'] = df_para_tabla['Tipo_Novedad'].fillna('')
+
     else:
+    
         df_para_tabla = df_merged.copy()
         df_para_tabla['Novedades_Por_Cargo'] = 0
+        df_para_tabla['Novedad'] = ''
+        df_para_tabla['Tipo_Novedad'] = ''
+    
 
     return {
         "donut_data": agg_donut,
@@ -133,7 +169,7 @@ def prepare_tab2_data(df_cartera, df_novedades):
         "detalle_sin_pago": (grouped_detalle_sin_pago, conteo_detalle_sin_pago),
         "processed_cartera": df_cartera,
         "processed_data_merged": df_merged, 
-        "data_para_tabla": df_para_tabla
+        "data_para_tabla": df_para_tabla # Esta es la tabla ahora expandida
     }
 
 @st.cache_data
@@ -210,26 +246,25 @@ def prepare_tab5_data(df_cartera):
     return {
         "potenciales_retanqueo": df_final
     }
-    
+
+@st.cache_data    
 def prepare_tab6_data(df_cartera, df_novedades):
     """
     Prepara los datos para el reporte de Call Centers en el Tab 6.
     Filtra los créditos que pertenecen a Call Centers para la tabla de detalle
-    y luego une las novedades.
+    y luego une CADA novedad individualmente.
     """
     if df_cartera.empty:
         return {}
     
     df = df_cartera.copy()
 
-    # --- NUEVO: Se añaden los cálculos para Estado_Pago y Estado_Gestion ---
-    # Se calcula 'Estado_Pago' basado en el recaudo.
+    # --- Se añaden los cálculos para Estado_Pago y Estado_Gestion ---
     if 'Total_Recaudo' in df.columns:
         df['Estado_Pago'] = np.where(df['Total_Recaudo'] > 50000, 'PAGO', 'SIN PAGO')
     else:
         df['Estado_Pago'] = 'SIN DATO'
 
-    # Se calcula 'Estado_Gestion' basado en la cantidad de novedades.
     if 'Cantidad_Novedades' in df.columns:
         df['Estado_Gestion'] = np.where(df['Cantidad_Novedades'] > 0, 'CON GESTIÓN', 'SIN GESTIÓN')
     else:
@@ -261,18 +296,39 @@ def prepare_tab6_data(df_cartera, df_novedades):
         df['Zona'].isin(call_centers_zona) | df['Call_Center_Apoyo'].isin(call_centers_apoyo)
     ].copy()
 
-    # --- Procesamiento de Novedades y Unión ---
+    # --- INICIO DE LA MODIFICACIÓN: Procesamiento de Novedades y Unión ---
     if not df_novedades.empty and 'Cedula_Cliente' in df_novedades.columns:
         df_novedades_limpia = df_novedades.copy()
-        if 'Fecha_Novedad' in df_novedades_limpia.columns:
-            df_novedades_limpia = df_novedades_limpia.sort_values('Fecha_Novedad', ascending=False)
         
-        df_last_novedad = df_novedades_limpia.drop_duplicates(subset=['Cedula_Cliente'], keep='first')[['Cedula_Cliente', 'Tipo_Novedad']]
+        # 1. Asegurar que las columnas 'Novedad' y 'Tipo_Novedad' existan
+        if 'Tipo_Novedad' not in df_novedades_limpia.columns:
+            df_novedades_limpia['Tipo_Novedad'] = 'N/A'
+        if 'Novedad' not in df_novedades_limpia.columns:
+            df_novedades_limpia['Novedad'] = 'N/A'
+            
+        # 2. Seleccionar las columnas de detalle de novedades para el merge
+        # Ya no usamos drop_duplicates para obtener CADA novedad
+        cols_to_merge = ['Cedula_Cliente', 'Tipo_Novedad', 'Novedad']
+        df_novedades_detalle = df_novedades_limpia[cols_to_merge]
+
+        # 3. Realizar el merge (left join)
+        # Esto expandirá df_detalle_call_centers, creando filas duplicadas
+        # por cada novedad asociada a un Cedula_Cliente.
+        df_detalle_call_centers = df_detalle_call_centers.merge(
+            df_novedades_detalle, 
+            on='Cedula_Cliente', 
+            how='left'
+        )
         
-        df_detalle_call_centers = df_detalle_call_centers.merge(df_last_novedad, on='Cedula_Cliente', how='left')
+        # 4. Rellenar NaNs para créditos que son 'SIN GESTIÓN'
         df_detalle_call_centers['Tipo_Novedad'] = df_detalle_call_centers['Tipo_Novedad'].fillna('SIN NOVEDAD').astype(str).str.strip().str.upper()
+        df_detalle_call_centers['Novedad'] = df_detalle_call_centers['Novedad'].fillna('') # Rellenar con string vacío
+        
     else:
+        # Si no hay novedades, crear las columnas vacías
         df_detalle_call_centers['Tipo_Novedad'] = 'SIN NOVEDAD'
+        df_detalle_call_centers['Novedad'] = ''
+    # --- FIN DE LA MODIFICACIÓN ---
 
     # --- Procesar Metas de Call Centers ---
     df_cl1_4 = df[(df['Zona'].isin(call_centers_zona)) & (df['Franja_Meta'] == 'AL DIA')]

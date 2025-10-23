@@ -45,14 +45,12 @@ def render(tab2_data):
             detalle_sin_pago_fig = charts_rodamientos.create_nested_pie_chart(
                 grouped_data_sin_pago,
                 conteo_data_sin_pago,
-                height=250 # La misma altura que el anterior para alinear
+                height=250 
             )
             if detalle_sin_pago_fig:
                 st.plotly_chart(detalle_sin_pago_fig, use_container_width=True)
             else:
                 st.warning("No hay datos de gestión.")
-
-    # --- El resto de tus componentes del tab2 continúan aquí abajo ---
     st.markdown("---")
 
     # El gráfico de "Todos los Créditos" puede ir abajo, ocupando todo el ancho
@@ -71,8 +69,7 @@ def render(tab2_data):
             st.info("No hay datos de gestión para mostrar.")
     st.markdown("---")
 
-    st.header("Búsqueda Detallada de Créditos con Gestiones")
-    # 1. Obtenemos el dataframe completo con toda la información
+    st.header("Detalle de Créditos con Gestion")
     df_completo = tab2_data.get("data_para_tabla")
 
     if df_completo is not None and not df_completo.empty:
@@ -157,10 +154,11 @@ def render(tab2_data):
             'Empresa','Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
             'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Novedades_Por_Cargo',
             'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2', 
-            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Meta_$','Novedad'
+            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Meta_$','Novedad', 'Tipo_Novedad','Meta_$'
             # Añade aquí todas las demás columnas que desees
         ]
-        columnas_por_defecto = ['Empresa','Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedades_Por_Cargo']
+        columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedad','Tipo_Novedad',
+                                'Novedades_Por_Cargo']
         columnas_seleccionadas = st.multiselect(
             "Selecciona las columnas a visualizar en la tabla:",
             options=todas_las_columnas_disponibles,
@@ -277,17 +275,18 @@ def render(tab2_data):
             df_tabla = df_tabla[df_tabla['Estado_Pago'].isin(selected_pagos)]
                 
         todas_las_columnas_posibles = [
-            'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Novedad',
+            'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular',
             'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 
             'Telefono_Codeudor2','Dias_Atraso_Final', 'Total_Recaudo',  'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
-            'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Empresa', 'Meta_$'
+            'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Meta_$'
             
         ]
         columnas_disponibles = [col for col in todas_las_columnas_posibles if col in df_tabla.columns]
         columnas_seleccionadas = st.multiselect(
             "Selecciona las columnas a mostrar en la tabla:",
             options=columnas_disponibles,
-            default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Rodamiento','Meta_Saldo', 'Valor_Vencido']
+            default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Rodamiento','Meta_$','Meta_Saldo','Meta_Intereses',
+                     'Valor_Vencido']
         )
         
         # --- Visualización de la Tabla (sin cambios) ---

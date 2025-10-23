@@ -34,9 +34,7 @@ def load_and_process_data(uploaded_file):
         "Novedad", "Fecha_Compromiso", "Valor","Empresa"
     ]
 
-    try:
-        # --- LECTURA CORREGIDA: Leemos cada hoja por separado para mayor fiabilidad ---
-        
+    try:     
         # Cargar la hoja de Cartera
         df_cartera = pd.read_excel(
             uploaded_file, 

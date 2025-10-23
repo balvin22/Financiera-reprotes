@@ -150,7 +150,6 @@ def render(tab6_data, charts_resultados):
     if selected_pagos: df_tabla = df_tabla[df_tabla['Estado_Pago'].isin(selected_pagos)]
     if selected_novedades: df_tabla = df_tabla[df_tabla['Tipo_Novedad'].isin(selected_novedades)]
 
-    # Selección de Columnas y Visualización de la Tabla
     todas_las_columnas_posibles = [
         'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Gestor', 'Zona','Telefono_Gestor', 
         'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 'Telefono_Codeudor2',

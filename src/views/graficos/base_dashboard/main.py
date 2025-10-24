@@ -18,21 +18,21 @@ def main():
     if not uploaded_file:
         st.info("Por favor, carga un archivo para comenzar.")
         return
-    df_cartera, df_novedades = data_loader.load_and_process_data(uploaded_file) 
+    df_cartera, df_novedades, df_llamadas, df_mensajeria = data_loader.load_and_process_data(uploaded_file) 
     if df_cartera is None:
         return
     
     df_cartera = filtering.add_call_center_column(df_cartera)
     filters = ui_components.sidebar_filters(df_cartera)
-    df_cartera_filtrada, df_novedades_filtrada = filtering.apply_main_filters(
-        df_cartera, df_novedades, filters
+    df_cartera_filtrada, df_novedades_filtrada, df_llamadas_filtrada, df_mensajeria_filtrada = filtering.apply_main_filters(
+        df_cartera, df_novedades, df_llamadas, df_mensajeria, filters
     )
     tab1_data = data_processing.prepare_tab1_data(df_cartera_filtrada)
     tab2_data = data_processing.prepare_tab2_data(df_cartera_filtrada, df_novedades_filtrada)
     tab3_data = data_processing.prepare_tab3_data(df_cartera_filtrada)
     tab4_data = data_processing.prepare_tab4_data(df_cartera_filtrada, df_novedades_filtrada)
     tab5_data = data_processing.prepare_tab5_data(df_cartera_filtrada)
-    tab6_data = data_processing.prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada)
+    tab6_data = data_processing.prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada,df_llamadas_filtrada,df_mensajeria_filtrada)
     
     # 4. Renderizar la página principal
     tab1, tab2, tab3, tab4,tab5, tab6 = st.tabs([

@@ -3,12 +3,20 @@ import streamlit as st
 import pandas as pd
 
 @st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_and_process_data(uploaded_file):
     """
     Carga y procesa eficientemente los datos desde un archivo Excel,
     leyendo únicamente las columnas especificadas para optimizar el rendimiento.
+
+    Las hojas 'Analisis_de_Cartera' y 'Detalle_Novedades' son críticas.
+    Las hojas 'Reporte_Llamadas' y 'Reporte_Mensajes' son opcionales y
+    se cargarán si existen.
+    
+    Retorna:
+        (df_cartera, df_novedades, df_llamadas, df_mensajeria)
     """
-    # --- OPTIMIZACIÓN: Listas de columnas a cargar para cada hoja ---
+    
     cols_cartera = [
         "Fecha_Desembolso", "Fecha_Ultima_Novedad", "Empresa", "Regional_Venta",
         "Nombre_Ciudad", "Nombre_Vendedor", "Franja_Meta", "Rodamiento", "Gestor",
@@ -33,9 +41,24 @@ def load_and_process_data(uploaded_file):
         "Nombre_Usuario", "Cargo_Usuario", "Celular_Corporativo", "Tipo_Novedad",
         "Novedad", "Fecha_Compromiso", "Valor","Empresa"
     ]
+    
+    # --- [NUEVO] Columnas para hojas opcionales ---
+    cols_llamadas = [
+        "Fecha_Llamada", "Extension_Llamada", "Destino_Llamada", "Estado_Llamada", "Duracion_Llamada",
+        "Codigo_Llamada", "Grabacion_Llamada", "Call_Center", "Nombre_Call"
+    ]
+    
+    cols_mensajeria = [
+        "Codigo_Pais", "Numero_Telefono", "Nombre_Saliente", "Estado", "Estado_Mensaje", "Estado_Respuesta_Saliente",
+        "Respuesta_Saliente", "Flujo_Truora", "Primer_Mensaje_Agente", "Fecha_Llamada", "Call_Center", "Nombre_Call"
+    ]
 
-    try:     
-        # Cargar la hoja de Cartera
+    df_llamadas = pd.DataFrame()
+    df_mensajeria = pd.DataFrame()
+    df_cartera = None
+    df_novedades = None
+
+    try: 
         df_cartera = pd.read_excel(
             uploaded_file, 
             sheet_name="Analisis_de_Cartera",
@@ -43,7 +66,6 @@ def load_and_process_data(uploaded_file):
             usecols=cols_cartera
         )
         
-        # Cargar la hoja de Novedades
         df_novedades = pd.read_excel(
             uploaded_file,
             sheet_name="Detalle_Novedades",
@@ -51,7 +73,6 @@ def load_and_process_data(uploaded_file):
             usecols=cols_novedades
         )
 
-        # --- Tu limpieza de datos se mantiene igual ---
         date_cols = ["Fecha_Desembolso", "Fecha_Ultima_Novedad", "Fecha_Cuota_Atraso", 
                      "Primera_Cuota_Mora",]
         for col in date_cols:
@@ -60,7 +81,7 @@ def load_and_process_data(uploaded_file):
 
         date_cols_novedades = ["Fecha_Novedad", "Fecha_Compromiso"]
         for col in date_cols_novedades:
-             if col in df_novedades.columns:
+            if col in df_novedades.columns:
                 df_novedades[col] = pd.to_datetime(df_novedades[col], errors="coerce").dt.date
 
         str_cols = ["Empresa", "Regional_Venta", "Nombre_Ciudad", "Nombre_Vendedor", 
@@ -68,7 +89,7 @@ def load_and_process_data(uploaded_file):
                     "Zona_Cobro", "Zona"]
         for col in str_cols:
             if col in df_cartera.columns:
-                df_cartera[col] = df_cartera[col].astype(str)
+                df_cartera[col] = df_cartera[col].astype(str).str.strip()
 
         if "Cantidad_Novedades" in df_cartera.columns:
             df_cartera['Cantidad_Novedades'] = pd.to_numeric(df_cartera['Cantidad_Novedades'], errors='coerce').fillna(0)
@@ -78,9 +99,54 @@ def load_and_process_data(uploaded_file):
 
         if 'Cedula_Cliente' in df_novedades.columns:
             df_novedades['Cedula_Cliente'] = df_novedades['Cedula_Cliente'].astype(str).str.strip()
+        try:
+            df_llamadas = pd.read_excel(
+                uploaded_file,
+                sheet_name="Reporte_Llamadas",
+                engine='openpyxl',
+                usecols=cols_llamadas
+            )
+            # Limpieza básica de llamadas
+            if "Fecha_Llamada" in df_llamadas.columns:
+                df_llamadas["Fecha_Llamada"] = pd.to_datetime(df_llamadas["Fecha_Llamada"], errors="coerce")
             
-        return df_cartera, df_novedades
+            str_cols_llamadas = [
+                "Extension_Llamada", "Destino_Llamada", "Estado_Llamada", 
+                "Codigo_Llamada", "Grabacion_Llamada", "Call_Center", "Nombre_Call"
+            ]
+            for col in str_cols_llamadas:
+                if col in df_llamadas.columns:
+                    df_llamadas[col] = df_llamadas[col].astype(str).str.strip()
+
+        except Exception as e:
+            st.warning(f"Nota: No se pudo cargar la hoja 'Reporte_Llamadas'. Causa: {e}")
+
+        # 2. Cargar Reporte_Mensajes
+        try:
+            df_mensajeria = pd.read_excel(
+                uploaded_file,
+                sheet_name="Reporte_Mensajes",
+                engine='openpyxl',
+                usecols=cols_mensajeria
+            )
+            # Limpieza básica de mensajería
+            if "Fecha_Llamada" in df_mensajeria.columns: # Basado en tu lista de columnas
+                df_mensajeria["Fecha_Llamada"] = pd.to_datetime(
+                    df_mensajeria["Fecha_Llamada"], errors="coerce", dayfirst=True
+                ).dt.date
+            
+            str_cols_mensajeria = [
+                "Codigo_Pais", "Numero_Telefono", "Nombre_Saliente", "Estado", 
+                "Estado_Menasaje", "Estado_Respuesta_Saliemte", "Respuesta_Saliente", 
+                "Flujo_Truora", "Primer_Mensaje_Agente", "Call_Center", "Nombre_Call"
+            ]
+            for col in str_cols_mensajeria:
+                if col in df_mensajeria.columns:
+                    df_mensajeria[col] = df_mensajeria[col].astype(str).str.strip()
+        except Exception as e:
+            st.warning(f"Nota: No se pudo cargar la hoja 'Reporte_Mensajes'. Causa: {e}")
+        return df_cartera, df_novedades, df_llamadas, df_mensajeria
 
     except Exception as e:
-        st.error(f"Error al leer el archivo. Asegúrate de que las hojas y columnas necesarias existan. Error: {e}")
-        return None, None
+        st.error(f"Error crítico al leer las hojas principales (Cartera o Novedades). Asegúrate de que existan. Error: {e}")
+        return None, None, None, None

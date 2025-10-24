@@ -247,19 +247,19 @@ def prepare_tab5_data(df_cartera):
         "potenciales_retanqueo": df_final
     }
 
-@st.cache_data    
-def prepare_tab6_data(df_cartera, df_novedades):
+@st.cache_data
+def prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada, df_llamadas_filtrada, df_mensajeria_filtrada):
     """
     Prepara los datos para el reporte de Call Centers en el Tab 6.
-    Filtra los créditos que pertenecen a Call Centers para la tabla de detalle
-    y luego une CADA novedad individualmente.
+    Usa DFs que ya han sido filtrados globalmente.
+    Calcula estadísticas de llamadas.
     """
-    if df_cartera.empty:
+    if df_cartera_filtrada.empty:
         return {}
     
-    df = df_cartera.copy()
+    df = df_cartera_filtrada.copy()
 
-    # --- Se añaden los cálculos para Estado_Pago y Estado_Gestion ---
+    # --- (Tu lógica de Estado_Pago y Estado_Gestion - sin cambios) ---
     if 'Total_Recaudo' in df.columns:
         df['Estado_Pago'] = np.where(df['Total_Recaudo'] > 50000, 'PAGO', 'SIN PAGO')
     else:
@@ -270,7 +270,7 @@ def prepare_tab6_data(df_cartera, df_novedades):
     else:
         df['Estado_Gestion'] = 'SIN DATO'
     
-    # --- Limpieza de Datos (Se realiza después de crear las columnas) ---
+    # --- (Tu lógica de Limpieza de Datos - sin cambios) ---
     columnas_numericas = ['Meta_General', 'Meta_$', 'Recaudo_Meta']
     for col in columnas_numericas:
         if col in df.columns:
@@ -288,7 +288,7 @@ def prepare_tab6_data(df_cartera, df_novedades):
         else:
             df[col] = 'SIN DATO'
 
-    # --- Filtrar créditos que pertenecen a Call Centers ---
+    # --- (Tu lógica de df_detalle_call_centers - sin cambios) ---
     call_centers_zona = ['CL1', 'CL2', 'CL3', 'CL4']
     call_centers_apoyo = ['CL5', 'CL6', 'CL7', 'CL8', 'CL9']
     
@@ -296,18 +296,15 @@ def prepare_tab6_data(df_cartera, df_novedades):
         df['Zona'].isin(call_centers_zona) | df['Call_Center_Apoyo'].isin(call_centers_apoyo)
     ].copy()
 
-    # --- INICIO DE LA MODIFICACIÓN: Procesamiento de Novedades y Unión ---
-    if not df_novedades.empty and 'Cedula_Cliente' in df_novedades.columns:
-        df_novedades_limpia = df_novedades.copy()
+    # --- (Tu lógica de Procesamiento de Novedades - sin cambios) ---
+    if not df_novedades_filtrada.empty and 'Cedula_Cliente' in df_novedades_filtrada.columns:
+        df_novedades_limpia = df_novedades_filtrada.copy()
         
-        # 1. Asegurar que las columnas 'Novedad' y 'Tipo_Novedad' existan
         if 'Tipo_Novedad' not in df_novedades_limpia.columns:
             df_novedades_limpia['Tipo_Novedad'] = 'N/A'
         if 'Novedad' not in df_novedades_limpia.columns:
             df_novedades_limpia['Novedad'] = 'N/A'
             
-        # 2. Seleccionar las columnas de detalle de novedades para el merge
-        # Ya no usamos drop_duplicates para obtener CADA novedad
         cols_to_merge = ['Cedula_Cliente', 'Tipo_Novedad', 'Novedad']
         df_novedades_detalle = df_novedades_limpia[cols_to_merge]
         df_detalle_call_centers = df_detalle_call_centers.merge(
@@ -316,17 +313,14 @@ def prepare_tab6_data(df_cartera, df_novedades):
             how='left'
         )
         
-        # 4. Rellenar NaNs para créditos que son 'SIN GESTIÓN'
         df_detalle_call_centers['Tipo_Novedad'] = df_detalle_call_centers['Tipo_Novedad'].fillna('SIN NOVEDAD').astype(str).str.strip().str.upper()
-        df_detalle_call_centers['Novedad'] = df_detalle_call_centers['Novedad'].fillna('') # Rellenar con string vacío
+        df_detalle_call_centers['Novedad'] = df_detalle_call_centers['Novedad'].fillna('') 
         
     else:
-        # Si no hay novedades, crear las columnas vacías
         df_detalle_call_centers['Tipo_Novedad'] = 'SIN NOVEDAD'
         df_detalle_call_centers['Novedad'] = ''
-    # --- FIN DE LA MODIFICACIÓN ---
 
-    # --- Procesar Metas de Call Centers ---
+    # --- (Tu lógica de Procesar Metas - sin cambios) ---
     df_cl1_4 = df[(df['Zona'].isin(call_centers_zona)) & (df['Franja_Meta'] == 'AL DIA')]
     if not df_cl1_4.empty:
         agg_cl1_4 = df_cl1_4.groupby(['Zona', 'Cobrador']).agg(
@@ -349,7 +343,7 @@ def prepare_tab6_data(df_cartera, df_novedades):
 
     df_reporte = pd.concat([agg_cl1_4, agg_cl5_9], ignore_index=True)
 
-    # --- Formatear Reporte de Metas ---
+    # --- (Tu lógica de Formatear Reporte de Metas - sin cambios) ---
     reporte_raw = pd.DataFrame()
     if not df_reporte.empty:
         df_reporte['Faltante'] = df_reporte['META_$'] - df_reporte['Recaudo_Meta']
@@ -357,13 +351,76 @@ def prepare_tab6_data(df_cartera, df_novedades):
         columnas_finales_raw = ['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta', 'Faltante', 'Cumplimiento']
         reporte_raw = df_reporte[columnas_finales_raw].sort_values(by='CALL_CENTER').reset_index(drop=True)
 
-    # --- Preparar datos para el gráfico de rodamientos ---
+    # --- (Tu lógica de Gráfico de Rodamientos - sin cambios) ---
     agg_rodamiento = pd.DataFrame() 
     if not df_detalle_call_centers.empty and 'Rodamiento' in df_detalle_call_centers.columns:
         agg_rodamiento = df_detalle_call_centers.groupby('Rodamiento').size().reset_index(name='count')
         
+    # --- Procesar Stats de Llamadas (opera sobre el DF ya filtrado) ---
+    llamadas_stats = {}
+    df_grafico_llamadas = pd.DataFrame()
+    
+    if not df_llamadas_filtrada.empty and 'Estado_Llamada' in df_llamadas_filtrada.columns:
+        df_llamadas_limpio = df_llamadas_filtrada.copy()
+        
+        df_llamadas_limpio['Estado_Llamada'] = df_llamadas_limpio['Estado_Llamada'].astype(str).str.strip().str.upper()
+        
+        total_llamadas = len(df_llamadas_limpio)
+        # --- [MODIFICADO] Aquí estaba tu advertencia, la reemplazamos con el cálculo ---
+        con_respuesta = len(df_llamadas_limpio[df_llamadas_limpio['Estado_Llamada'] == 'ANSWERED'])
+        sin_respuesta = total_llamadas - con_respuesta
+        
+        llamadas_stats = {
+            "total_llamadas": total_llamadas,
+            "con_respuesta": con_respuesta,
+            "sin_respuesta": sin_respuesta
+        }
+        
+        df_grafico_llamadas = pd.DataFrame({
+            "Tipo": ["CON RESPUESTA", "SIN RESPUESTA"],
+            "Cantidad": [con_respuesta, sin_respuesta]
+        })
+    # --- [NUEVO] Calcular efectividad por Call Center ---
+        try:
+            agg_calls = df_llamadas_limpio.groupby('Call_Center_Limpio').agg(
+                Total_Intentos=('Estado_Llamada', 'size'),
+                Con_Respuesta=('Estado_Llamada', lambda x: (x == 'ANSWERED').sum())
+            ).reset_index()
+            
+            agg_calls['Efectividad'] = np.where(
+                agg_calls['Total_Intentos'] > 0,
+                agg_calls['Con_Respuesta'] / agg_calls['Total_Intentos'],
+                0
+            )
+            # Renombrar para el gráfico
+            agg_calls.rename(columns={'Call_Center_Limpio': 'Call_Center'}, inplace=True)
+            df_efectividad_call = agg_calls.sort_values(by='Efectividad', ascending=False)
+        
+        except Exception as e:
+            st.error(f"Error calculando efectividad de llamadas: {e}")
+            df_efectividad_call = pd.DataFrame()
+        # --- [FIN NUEVO] ---
+
+    else:
+        # Si no hay llamadas, poblamos los stats para evitar errores en el subtab
+        llamadas_stats = {
+            "total_llamadas": 0,
+            "con_respuesta": 0,
+            "sin_respuesta": 0
+        }
+        df_grafico_llamadas = pd.DataFrame({
+            "Tipo": ["CON RESPUESTA", "SIN RESPUESTA"],
+            "Cantidad": [0, 0]
+        })
+        df_efectividad_call = pd.DataFrame()
+
     return {
         "reporte_raw": reporte_raw,
         "rodamiento_data": agg_rodamiento,
-        "cartera_detallada_call_center": df_detalle_call_centers
+        "cartera_detallada_call_center": df_detalle_call_centers,
+        "df_llamadas_filtrada": df_llamadas_filtrada,       
+        "df_mensajeria_filtrada": df_mensajeria_filtrada, 
+        "llamadas_stats": llamadas_stats,                  
+        "df_grafico_llamadas": df_grafico_llamadas,
+        "df_efectividad_call": df_efectividad_call  # <-- [NUEVO]
     }

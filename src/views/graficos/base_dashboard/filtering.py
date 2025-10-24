@@ -1,9 +1,17 @@
 import numpy as np
+import pandas as pd 
+import streamlit as st
 
-def apply_main_filters(df_cartera, df_novedades, filters):
+def apply_main_filters(df_cartera, df_novedades, df_llamadas, df_mensajeria, filters):
     """
-    Aplica los filtros de la barra lateral a los dataframes de cartera y novedades.
+    Aplica los filtros de la barra lateral a todos los dataframes relevantes.
+    [MODIFICADO]
+    - Cartera/Novedades se filtran por TODOS los filtros.
+    - Llamadas/Mensajería se filtran SÓLO por el filtro de 'call_center'.
     """
+    
+    # --- SECCIÓN 1: Filtrar Cartera y Novedades (Usando TODOS los filtros) ---
+    
     df_cartera_filtrada = df_cartera[
         df_cartera["Empresa"].isin(filters['empresa']) &
         df_cartera["Regional_Cobro"].isin(filters['regional_cobro']) &
@@ -12,15 +20,65 @@ def apply_main_filters(df_cartera, df_novedades, filters):
         df_cartera["CALL_CENTER_FILTRO"].isin(filters.get('call_center', df_cartera["CALL_CENTER_FILTRO"].unique()))
     ].copy()
 
+    # (Filtrado de novedades no cambia)
     if filters['novedades'] == "Con Novedades":
         df_cartera_filtrada = df_cartera_filtrada[df_cartera_filtrada["Cantidad_Novedades"] > 0]
     elif filters['novedades'] == "Sin Novedades":
         df_cartera_filtrada = df_cartera_filtrada[df_cartera_filtrada["Cantidad_Novedades"] == 0]
 
     cedulas_filtradas = df_cartera_filtrada["Cedula_Cliente"].unique()
-    df_novedades_filtrada = df_novedades[df_novedades["Cedula_Cliente"].isin(cedulas_filtradas)]
+    if not df_novedades.empty:
+        df_novedades_filtrada = df_novedades[df_novedades["Cedula_Cliente"].isin(cedulas_filtradas)]
+    else:
+        df_novedades_filtrada = pd.DataFrame(columns=df_novedades.columns)
 
-    return df_cartera_filtrada, df_novedades_filtrada
+    
+    # --- SECCIÓN 2: Filtrar Llamadas y Mensajería (Usando SÓLO el filtro de Call Center) ---
+
+    codigos_call_seleccionados = filters.get('call_center', [])
+    
+    # --- [INICIO DEPURACIÓN 1] ---
+    # Mostramos qué estamos recibiendo del filtro.
+    st.sidebar.info(f"Filtro CCs (UI): {codigos_call_seleccionados}")
+    # --- [FIN DEPURACIÓN 1] ---
+
+    df_llamadas_filtrada = pd.DataFrame(columns=df_llamadas.columns)
+    df_mensajeria_filtrada = pd.DataFrame(columns=df_mensajeria.columns)
+
+    # Filtrar Llamadas
+    if not df_llamadas.empty and 'Call_Center' in df_llamadas.columns:
+        df_llamadas_limpio = df_llamadas.copy()
+        df_llamadas_limpio['Call_Center_Limpio'] = df_llamadas_limpio['Call_Center'].astype(str).str.replace(" ", "").str.strip().str.upper()
+        
+        # --- [INICIO DEPURACIÓN 2] ---
+        # Mostramos los valores únicos en ambos lados del "cruce"
+        st.sidebar.info(f"CCs en Cartera (filtro): {list(df_cartera['CALL_CENTER_FILTRO'].unique())}")
+        st.sidebar.info(f"CCs en Llamadas (limpio): {list(df_llamadas_limpio['Call_Center_Limpio'].unique())}")
+        # --- [FIN DEPURACIÓN 2] ---
+        
+        filas_antes = len(df_llamadas_limpio)
+        
+        df_llamadas_filtrada = df_llamadas_limpio[
+            df_llamadas_limpio['Call_Center_Limpio'].isin(codigos_call_seleccionados)
+        ]
+        
+        filas_despues = len(df_llamadas_filtrada)
+        
+        # --- [INICIO DEPURACIÓN 3] ---
+        # Mostramos el resultado del filtro
+        st.sidebar.warning(f"Llamadas antes: {filas_antes} | Llamadas después: {filas_despues}")
+        # --- [FIN DEPURACIÓN 3] ---
+
+    # Filtrar Mensajería
+    if not df_mensajeria.empty and 'Call_Center' in df_mensajeria.columns:
+        df_mensajeria_limpio = df_mensajeria.copy()
+        df_mensajeria_limpio['Call_Center_Limpio'] = df_mensajeria_limpio['Call_Center'].astype(str).str.replace(" ", "").str.strip().str.upper()
+        
+        df_mensajeria_filtrada = df_mensajeria_limpio[
+            df_mensajeria_limpio['Call_Center_Limpio'].isin(codigos_call_seleccionados)
+        ]
+    
+    return df_cartera_filtrada, df_novedades_filtrada, df_llamadas_filtrada, df_mensajeria_filtrada
 
 
 def add_call_center_column(df):
@@ -32,12 +90,13 @@ def add_call_center_column(df):
 
     if 'Zona' not in df_copy.columns:
         df_copy['Zona'] = ''
+    else:
+        df_copy['Zona'] = df_copy['Zona'].astype(str).str.replace(" ", "").str.strip().str.upper().fillna('')
+
     if 'Call_Center_Apoyo' not in df_copy.columns:
         df_copy['Call_Center_Apoyo'] = ''
-        
-    # Rellenar NaNs con strings vacíos para que isin funcione correctamente
-    df_copy['Zona'] = df_copy['Zona'].fillna('')
-    df_copy['Call_Center_Apoyo'] = df_copy['Call_Center_Apoyo'].fillna('')
+    else:
+        df_copy['Call_Center_Apoyo'] = df_copy['Call_Center_Apoyo'].astype(str).str.replace(" ", "").str.strip().str.upper().fillna('')
 
     conditions = [
         df_copy['Zona'].isin(['CL1', 'CL2', 'CL3', 'CL4']),
@@ -48,7 +107,7 @@ def add_call_center_column(df):
         df_copy['Call_Center_Apoyo']
     ]
     
-    # Usamos np.select para aplicar la lógica condicional de forma eficiente
     df_copy['CALL_CENTER_FILTRO'] = np.select(conditions, choices, default='SIN CALL CENTER')
     
     return df_copy
+

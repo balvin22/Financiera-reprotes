@@ -310,10 +310,6 @@ def prepare_tab6_data(df_cartera, df_novedades):
         # Ya no usamos drop_duplicates para obtener CADA novedad
         cols_to_merge = ['Cedula_Cliente', 'Tipo_Novedad', 'Novedad']
         df_novedades_detalle = df_novedades_limpia[cols_to_merge]
-
-        # 3. Realizar el merge (left join)
-        # Esto expandirá df_detalle_call_centers, creando filas duplicadas
-        # por cada novedad asociada a un Cedula_Cliente.
         df_detalle_call_centers = df_detalle_call_centers.merge(
             df_novedades_detalle, 
             on='Cedula_Cliente', 

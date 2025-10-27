@@ -36,12 +36,6 @@ def apply_main_filters(df_cartera, df_novedades, df_llamadas, df_mensajeria, fil
     # --- SECCIÓN 2: Filtrar Llamadas y Mensajería (Usando SÓLO el filtro de Call Center) ---
 
     codigos_call_seleccionados = filters.get('call_center', [])
-    
-    # --- [INICIO DEPURACIÓN 1] ---
-    # Mostramos qué estamos recibiendo del filtro.
-    st.sidebar.info(f"Filtro CCs (UI): {codigos_call_seleccionados}")
-    # --- [FIN DEPURACIÓN 1] ---
-
     df_llamadas_filtrada = pd.DataFrame(columns=df_llamadas.columns)
     df_mensajeria_filtrada = pd.DataFrame(columns=df_mensajeria.columns)
 
@@ -49,26 +43,10 @@ def apply_main_filters(df_cartera, df_novedades, df_llamadas, df_mensajeria, fil
     if not df_llamadas.empty and 'Call_Center' in df_llamadas.columns:
         df_llamadas_limpio = df_llamadas.copy()
         df_llamadas_limpio['Call_Center_Limpio'] = df_llamadas_limpio['Call_Center'].astype(str).str.replace(" ", "").str.strip().str.upper()
-        
-        # --- [INICIO DEPURACIÓN 2] ---
-        # Mostramos los valores únicos en ambos lados del "cruce"
-        st.sidebar.info(f"CCs en Cartera (filtro): {list(df_cartera['CALL_CENTER_FILTRO'].unique())}")
-        st.sidebar.info(f"CCs en Llamadas (limpio): {list(df_llamadas_limpio['Call_Center_Limpio'].unique())}")
-        # --- [FIN DEPURACIÓN 2] ---
-        
-        filas_antes = len(df_llamadas_limpio)
-        
         df_llamadas_filtrada = df_llamadas_limpio[
             df_llamadas_limpio['Call_Center_Limpio'].isin(codigos_call_seleccionados)
         ]
         
-        filas_despues = len(df_llamadas_filtrada)
-        
-        # --- [INICIO DEPURACIÓN 3] ---
-        # Mostramos el resultado del filtro
-        st.sidebar.warning(f"Llamadas antes: {filas_antes} | Llamadas después: {filas_despues}")
-        # --- [FIN DEPURACIÓN 3] ---
-
     # Filtrar Mensajería
     if not df_mensajeria.empty and 'Call_Center' in df_mensajeria.columns:
         df_mensajeria_limpio = df_mensajeria.copy()

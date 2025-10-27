@@ -8,7 +8,6 @@ def render(llamadas_stats, df_grafico_llamadas, df_llamadas_filtradas, df_efecti
         st.warning("No se encontraron registros de llamadas para los Call Centers seleccionados.")
         return
         
-    st.markdown("#### Información de Llamadas")
     total_fmt = f'{llamadas_stats.get("total_llamadas", 0):,.0f}'.replace(',', '.')
     con_respuesta_fmt = f'{llamadas_stats.get("con_respuesta", 0):,.0f}'.replace(',', '.')
     sin_respuesta_fmt = f'{llamadas_stats.get("sin_respuesta", 0):,.0f}'.replace(',', '.')

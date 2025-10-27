@@ -265,7 +265,9 @@ def prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada, df_llamadas_fi
             "df_grafico_llamadas": pd.DataFrame(),
             "df_efectividad_call": pd.DataFrame(),
             "df_llamadas_por_dia": pd.DataFrame(),
-            "alerta_umbral": 0
+            "alerta_umbral": 0,
+            "df_funnel_mensajeria": pd.DataFrame(),
+            "df_efectividad_mensajeria": pd.DataFrame()
         }
     
     df = df_cartera_filtrada.copy()
@@ -451,6 +453,133 @@ def prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada, df_llamadas_fi
         df_efectividad_call = pd.DataFrame()
         df_llamadas_por_dia = pd.DataFrame()
         alerta_umbral=0
+        
+    df_funnel_mensajeria = pd.DataFrame()
+    df_efectividad_mensajeria = pd.DataFrame()
+    
+    # Necesitamos los 3 DFs: mensajeria, novedades, y cartera (df)
+    if not df_mensajeria_filtrada.empty and not df_novedades_filtrada.empty and not df.empty:
+        try:
+            # --- Paso 1: Mensajes Entregados ---
+            df_mensajeria_limpio = df_mensajeria_filtrada.copy()
+            total_mensajes = len(df_mensajeria_limpio)
+            
+            # --- Paso 2: Conversaciones ---
+            if 'Primer_Mensaje_Agente' in df_mensajeria_limpio.columns:
+                df_mensajeria_limpio['Primer_Mensaje_Agente'] = df_mensajeria_limpio['Primer_Mensaje_Agente'].astype(str).replace('nan', '')
+                df_mensajeria_limpio['Es_Conversacion'] = np.where(
+                    df_mensajeria_limpio['Primer_Mensaje_Agente'].notna() &
+                    (df_mensajeria_limpio['Primer_Mensaje_Agente'] != '') &
+                    (df_mensajeria_limpio['Primer_Mensaje_Agente'] != 'None'),
+                    1,
+                    0
+                )
+                
+                df_conversaciones = df_mensajeria_limpio[df_mensajeria_limpio['Es_Conversacion'] == 1].copy()
+                total_conversaciones = len(df_conversaciones)
+            else:
+                st.warning("Columna 'Primer_Mensaje_Agente' no encontrada en datos de mensajería.")
+                total_conversaciones = 0
+                df_conversaciones = pd.DataFrame()
+                
+            if 'Call_Center' in df_mensajeria_limpio.columns:
+                agg_msgs = df_mensajeria_limpio.groupby('Call_Center').agg(
+                    Total_Entregados=('Primer_Mensaje_Agente', 'size'),
+                    Total_Conversaciones=('Es_Conversacion', 'sum')
+                ).reset_index()
+                
+                agg_msgs['Efectividad'] = np.where(
+                    agg_msgs['Total_Entregados'] > 0,
+                    agg_msgs['Total_Conversaciones'] / agg_msgs['Total_Entregados'],
+                    0
+                )
+                df_efectividad_mensajeria = agg_msgs.sort_values(by='Efectividad', ascending=False)
+            else:
+                st.warning("Columna 'Call_Center' no encontrada en datos de mensajería para gráfico de efectividad.")
+                df_efectividad_mensajeria = pd.DataFrame() 
+
+            # --- Paso 3: Gestion en Sistema ---
+            if not df_conversaciones.empty and 'Numero_Telefono' in df_conversaciones.columns:
+                
+                # --- [CORREGIDO] Normalizar teléfonos de Novedades ---
+                telefonos_novedades = set()
+                if 'Telefono_Cliente' in df_novedades_filtrada.columns:
+                    # Convertir a str, quitar nulos, y quitar ".0" del final
+                    telefonos_novedades.update(
+                        df_novedades_filtrada['Telefono_Cliente'].dropna().astype(str).str.replace(r'\.0$', '', regex=True)
+                    )
+                if 'Celular_Cliente' in df_novedades_filtrada.columns:
+                    # Convertir a str, quitar nulos, y quitar ".0" del final
+                    telefonos_novedades.update(
+                        df_novedades_filtrada['Celular_Cliente'].dropna().astype(str).str.replace(r'\.0$', '', regex=True)
+                    )
+                
+                if not telefonos_novedades:
+                    st.warning("No se encontraron teléfonos en 'Detalle_Novedades' para cruzar.")
+                    total_gestion_sistema = 0
+                    df_gestion_sistema = pd.DataFrame()
+                else:
+                    # --- [CORREGIDO] Normalizar Numero_Telefono de Conversaciones ---
+                    df_conversaciones['Numero_Telefono_Norm'] = df_conversaciones['Numero_Telefono'].astype(str).str.replace(r'\.0$', '', regex=True)
+                    
+                    # Comparar los números normalizados
+                    df_gestion_sistema = df_conversaciones[
+                        df_conversaciones['Numero_Telefono_Norm'].isin(telefonos_novedades)
+                    ].copy()
+                    total_gestion_sistema = len(df_gestion_sistema)
+            else:
+                total_gestion_sistema = 0
+                df_gestion_sistema = pd.DataFrame()
+
+            # --- Paso 4: Clientes con Pago ---
+            if not df_gestion_sistema.empty:
+                # 4a. Obtener Cédulas de clientes que PAGARON (de 'Analisis_de_Cartera' -> df)
+                if 'Cedula_Cliente' in df.columns and 'Estado_Pago' in df.columns:
+                    cedulas_con_pago = set(df[df['Estado_Pago'] == 'PAGO']['Cedula_Cliente'].dropna().astype(str))
+                else:
+                    cedulas_con_pago = set()
+                
+                if not cedulas_con_pago:
+                    total_clientes_pago = 0
+                else:
+                    # 4b. Crear mapa de Telefono -> Cedula desde df_novedades_filtrada
+                    # --- [CORREGIDO] Usar teléfonos normalizados para el mapeo ---
+                    map_tel_a_cedula = {}
+                    df_novedades_map = df_novedades_filtrada.dropna(subset=['Cedula_Cliente']).copy() # Usar .copy()
+                    
+                    if 'Telefono_Cliente' in df_novedades_map.columns:
+                        # Crear columna normalizada ANTES de usarla como índice
+                        df_novedades_map['Telefono_Cliente_Norm'] = df_novedades_map['Telefono_Cliente'].astype(str).str.replace(r'\.0$', '', regex=True)
+                        map1 = df_novedades_map.set_index('Telefono_Cliente_Norm')['Cedula_Cliente'].astype(str).to_dict()
+                        map_tel_a_cedula.update(map1)
+                        
+                    if 'Celular_Cliente' in df_novedades_map.columns:
+                        # Crear columna normalizada ANTES de usarla como índice
+                        df_novedades_map['Celular_Cliente_Norm'] = df_novedades_map['Celular_Cliente'].astype(str).str.replace(r'\.0$', '', regex=True)
+                        map2 = df_novedades_map.set_index('Celular_Cliente_Norm')['Cedula_Cliente'].astype(str).to_dict()
+                        map_tel_a_cedula.update(map2)
+                    
+                    if not map_tel_a_cedula:
+                        total_clientes_pago = 0
+                    else:
+                        # 4c. Mapear y Contar
+                        # Re-usamos la columna 'Numero_Telefono_Norm' que ya creamos en el Paso 3
+                        df_gestion_sistema['Cedula_Mapeada'] = df_gestion_sistema['Numero_Telefono_Norm'].map(map_tel_a_cedula)
+                        total_clientes_pago = df_gestion_sistema['Cedula_Mapeada'].isin(cedulas_con_pago).sum()
+            else:
+                total_clientes_pago = 0
+            data_funnel = {
+                'Etapa': ['Mensajes Entregados', 'Conversaciones', 'Gestion en Sistema', 'Clientes con Pago'],
+                'Cantidad': [total_mensajes, total_conversaciones, total_gestion_sistema, total_clientes_pago]
+            }
+            df_funnel_mensajeria = pd.DataFrame(data_funnel)
+
+        except Exception as e:
+            st.error(f"Error al procesar el embudo de mensajería: {e}")
+            df_funnel_mensajeria = pd.DataFrame()
+    else:
+        df_funnel_mensajeria = pd.DataFrame()
+        df_efectividad_mensajeria = pd.DataFrame()  
     return {
         "reporte_raw": reporte_raw,
         "rodamiento_data": agg_rodamiento,
@@ -461,5 +590,7 @@ def prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada, df_llamadas_fi
         "df_grafico_llamadas": df_grafico_llamadas,
         "df_efectividad_call": df_efectividad_call, 
         "df_llamadas_por_dia": df_llamadas_por_dia,
-        "alerta_umbral": alerta_umbral
+        "alerta_umbral": alerta_umbral,
+        "df_funnel_mensajeria": df_funnel_mensajeria,
+        "df_efectividad_mensajeria": df_efectividad_mensajeria
     }

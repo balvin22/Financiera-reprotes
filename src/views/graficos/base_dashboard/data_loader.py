@@ -39,10 +39,9 @@ def load_and_process_data(uploaded_file):
     cols_novedades = [
         "Fecha_Novedad", "Cedula_Cliente", "Nombre_Cliente", "Usuario_Novedad",
         "Nombre_Usuario", "Cargo_Usuario", "Celular_Corporativo", "Tipo_Novedad",
-        "Novedad", "Fecha_Compromiso", "Valor","Empresa"
+        "Novedad", "Fecha_Compromiso", "Valor","Empresa","Celular_Cliente","Telefono_Cliente"
     ]
     
-    # --- [NUEVO] Columnas para hojas opcionales ---
     cols_llamadas = [
         "Fecha_Llamada", "Extension_Llamada", "Destino_Llamada", "Estado_Llamada", "Duracion_Llamada",
         "Codigo_Llamada", "Grabacion_Llamada", "Call_Center", "Nombre_Call"

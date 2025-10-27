@@ -295,3 +295,143 @@ def create_llamadas_por_dia_area_chart(df_llamadas_dia, filtros_respuesta: list,
     )
     
     return fig
+
+def create_mensajeria_funnel_chart(df_funnel):
+    """
+    Crea un gráfico de embudo (funnel chart) para la gestión de mensajería,
+    con el estilo piramidal de Plotly, similar a la imagen provista.
+    """
+    if df_funnel.empty:
+        return None
+    df_chart = df_funnel.copy()
+    df_chart['Etapa_Orden'] = df_chart['Etapa'].map({
+        'Mensajes Entregados': 4,
+        'Conversaciones': 3,
+        'Gestion en Sistema': 2,
+        'Clientes con Pago': 1
+    })
+    df_chart = df_chart.sort_values(by='Etapa_Orden', ascending=False) # Ordenar de arriba a abajo
+
+    # Generar el gráfico de embudo
+    fig = go.Figure(go.Funnel(
+        y = df_chart['Etapa'], # Las etiquetas en el eje Y
+        x = df_chart['Cantidad'], # Los valores en el eje X
+        textinfo = "value", # Mostrar el valor dentro de cada barra
+        textfont = dict(color='white', size=14), # Estilo del texto
+        marker = dict(color="#6A5ACD"), # Un color morado similar al de la imagen
+        connector = dict(line=dict(color="white", dash="dot", width=1)), # Conectores entre las etapas
+        opacity = 0.8 # Ligeramente transparente para un mejor look
+    ))
+    
+    fig.update_layout(
+        title={
+            'text': "Gestión de Mensajes",
+            'yref': 'container',
+            'y':0.95,
+            'x':0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+            'font': dict(size=20, color='black', family="Arial, sans-serif")
+        },
+        yaxis_title=None,
+        xaxis=dict(visible=False), # Ocultar el eje X si no se desea ver la escala
+        plot_bgcolor='rgba(0,0,0,0)', # Fondo transparente del gráfico
+        paper_bgcolor='rgba(0,0,0,0)', # Fondo transparente del papel
+        margin=dict(l=20, r=20, t=50, b=20),
+        font=dict(color='black') # Color de fuente general, especialmente para el título.
+    )
+    return fig
+
+def create_efectividad_mensajeria_chart(df_efectividad):
+    """
+    Crea un gráfico de barras horizontales que muestra la efectividad de
+    mensajería (Conversaciones / Entregados) por Call Center.
+    Muestra DOS etiquetas de texto:
+    1. La efectividad (% y Total_Conversaciones) al final de la barra azul.
+    2. El Total_Entregados al final de la barra gris (100%).
+    """
+    if df_efectividad.empty:
+        return None
+    
+    # Asegurarse de que las columnas necesarias existen
+    cols_necesarias = ['Call_Center', 'Efectividad', 'Total_Conversaciones', 'Total_Entregados']
+    if not all(col in df_efectividad.columns for col in cols_necesarias):
+         print(f"Error: Faltan columnas clave en df_efectividad_mensajeria. Se necesitan: {cols_necesarias}")
+         return None
+
+    df_chart = df_efectividad.sort_values(by='Efectividad', ascending=True)
+
+    # 1. Crear AMBOS formatos de texto
+    
+    # Texto para la barra azul (Efectividad)
+    def format_text_efectividad(row):
+        pct = f"{row['Efectividad']:.2%}".replace('.', ',')
+        count = f"{row['Total_Conversaciones']:,.0f}".replace(',', '.')
+        return f"<b>{pct}</b> ({count})"
+        
+    df_chart['Texto_Efectividad'] = df_chart.apply(format_text_efectividad, axis=1)
+
+    # Texto para la barra gris (Total)
+    def format_text_total(row):
+        total = f"{row['Total_Entregados']:,.0f}".replace(',', '.')
+        return f"<b>{total}</b>"
+        
+    df_chart['Texto_Total'] = df_chart.apply(format_text_total, axis=1)
+
+
+    # 2. Crear la figura base
+    fig = go.Figure()
+
+    # 3. Añadir la barra de fondo (gris) con el texto del TOTAL
+    fig.add_trace(go.Bar(
+        y=df_chart['Call_Center'],
+        x=[1] * len(df_chart), # Barra al 100%
+        orientation='h',
+        marker=dict(color='rgba(230, 230, 230, 0.9)'), # Gris claro
+        hoverinfo='none',
+        showlegend=False,
+        text=df_chart['Texto_Total'],
+        textposition='outside',
+        textfont=dict(color='#333333', size=11)
+    ))
+
+    # 4. Añadir la barra de efectividad (azul) con el texto de EFECTIVIDAD
+    fig.add_trace(go.Bar(
+        y=df_chart['Call_Center'],
+        x=df_chart['Efectividad'],
+        orientation='h',
+        marker=dict(color='#3366CC'), 
+        hoverinfo='none',
+        showlegend=False,
+        text=df_chart['Texto_Efectividad'],
+        textposition='outside',
+        textfont=dict(color='#333333', size=11) # Color del texto después de la barra azul
+    ))
+
+    # 5. Configurar el layout
+    fig.update_layout(
+        title_text='% = Conversaciones / Mensajes Entregados',
+        title_x=0.05, 
+        title_font_size=14,
+        title_font_family="Arial, sans-serif",
+        barmode='overlay', 
+        xaxis=dict(
+            showticklabels=False,
+            showgrid=False,
+            zeroline=False,
+            range=[0, 1.4], # Rango amplio para que quepan ambos textos
+            fixedrange=True
+        ),
+        yaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            fixedrange=True,
+            tickfont=dict(size=12, color='#333333')
+        ),
+        yaxis_title=None,
+        margin=dict(l=50, r=20, t=50, b=20),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    
+    return fig

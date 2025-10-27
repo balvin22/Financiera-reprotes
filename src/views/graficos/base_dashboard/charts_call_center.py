@@ -107,29 +107,18 @@ def create_efectividad_call_chart(df_efectividad):
          return None
 
     df_chart = df_efectividad.sort_values(by='Efectividad', ascending=True)
-
-    # 1. [NUEVO] Crear AMBOS formatos de texto
-    
-    # Texto para la barra azul (Efectividad)
     def format_text_efectividad(row):
         pct = f"{row['Efectividad']:.2%}".replace('.', ',')
         count = f"{row['Con_Respuesta']:,.0f}".replace(',', '.')
         return f"<b>{pct}</b> ({count})"
         
     df_chart['Texto_Efectividad'] = df_chart.apply(format_text_efectividad, axis=1)
-
-    # Texto para la barra gris (Total)
     def format_text_total(row):
         total = f"{row['Total_Intentos']:,.0f}".replace(',', '.')
         return f"<b>{total}</b>"
         
     df_chart['Texto_Total'] = df_chart.apply(format_text_total, axis=1)
-
-
-    # 2. Crear la figura base
     fig = go.Figure()
-
-    # 3. [MODIFICADO] Añadir la barra de fondo (gris) con el texto del TOTAL
     fig.add_trace(go.Bar(
         y=df_chart['Call_Center'],
         x=[1] * len(df_chart), # Barra al 100%
@@ -141,8 +130,6 @@ def create_efectividad_call_chart(df_efectividad):
         textposition='outside',
         textfont=dict(color='#333333', size=11)
     ))
-
-    # 4. [MODIFICADO] Añadir la barra de efectividad (azul) con el texto de EFECTIVIDAD
     fig.add_trace(go.Bar(
         y=df_chart['Call_Center'],
         x=df_chart['Efectividad'],
@@ -179,6 +166,132 @@ def create_efectividad_call_chart(df_efectividad):
         margin=dict(l=50, r=20, t=50, b=20),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)'
+    )
+    return fig
+
+def create_llamadas_por_dia_area_chart(df_llamadas_dia, filtros_respuesta: list, alerta_umbral: int):
+    """
+    Crea un gráfico de área que muestra la tendencia de llamadas por día,
+    filtrado por una lista de estados de respuesta ('CON RESPUESTA', 'SIN RESPUESTA').
+    Se aplica un estilo oscuro similar al de la imagen de ejemplo.
+    """
+    if df_llamadas_dia.empty:
+        return None
+    
+    # --- (Lógica de filtrado y título - SIN CAMBIOS) ---
+    if not filtros_respuesta:
+        df_filtrado_agg = pd.DataFrame(columns=['Fecha', 'Total_Llamadas'])
+        title_str = "NINGUNO"
+    else:
+        df_filtrado = df_llamadas_dia[df_llamadas_dia['Estado_Respuesta'].isin(filtros_respuesta)].copy()
+        df_filtrado_agg = df_filtrado.groupby('Fecha')['Total_Llamadas'].sum().reset_index()
+        
+        if len(filtros_respuesta) > 1:
+            title_str = "TODAS"
+        else:
+            title_str = filtros_respuesta[0]
+    
+    # --- (Colores - SIN CAMBIOS) ---
+    BG_COLOR = '#3d3d3d'
+    GRID_COLOR = 'rgba(255, 255, 255, 0.2)'
+    LINE_COLOR = '#007FFF'
+    FILL_COLOR = 'rgba(0, 127, 255, 0.3)'
+
+    if df_filtrado_agg.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            title=f"Tendencia de Llamadas (Días Hábiles): {title_str}",
+            xaxis_title="Fecha",
+            yaxis_title="Total Llamadas",
+            plot_bgcolor=BG_COLOR,
+            paper_bgcolor=BG_COLOR,
+            font_color='white',
+            annotations=[{
+                "text": "No hay datos para esta selección.",
+                "xref": "paper", "yref": "paper",
+                "showarrow": False, "font": {"size": 16, "color": "white"}
+            }]
+        )
+        return fig
+        
+    df_filtrado_agg.sort_values(by='Fecha', inplace=True)
+    
+    df_filtrado_agg['Texto_Hover'] = df_filtrado_agg.apply(
+        lambda row: f"<b>Fecha:</b> {row['Fecha']:%d-%b-%Y}<br><b>Total:</b> {row['Total_Llamadas']:,.0f}".replace(',', '.'),
+        axis=1
+    )
+    
+    fig = go.Figure()
+    
+    # --- (Trace principal - SIN CAMBIOS) ---
+    fig.add_trace(go.Scatter(
+        x=df_filtrado_agg['Fecha'],
+        y=df_filtrado_agg['Total_Llamadas'],
+        mode='lines+markers',
+        fill='tozeroy',
+        marker=dict(color=LINE_COLOR, size=5),
+        line=dict(color=LINE_COLOR, width=2),
+        fillcolor=FILL_COLOR,
+        name=title_str,
+        hoverinfo='text',
+        text=df_filtrado_agg['Texto_Hover']
+    ))
+    
+    # --- [NUEVO] Añadir línea de alerta y marcadores ---
+    if alerta_umbral > 0:
+        # 1. Encontrar los puntos que están por debajo del umbral
+        df_alerta = df_filtrado_agg[df_filtrado_agg['Total_Llamadas'] <= alerta_umbral].copy()
+        
+        if not df_alerta.empty:
+            # 2. Añadir marcadores 'x' rojos en esos puntos
+            fig.add_trace(go.Scatter(
+                x=df_alerta['Fecha'],
+                y=df_alerta['Total_Llamadas'],
+                mode='markers',
+                marker=dict(color='red', size=10, symbol='x-thin', line=dict(width=2)),
+                name=f'Alerta (<= {alerta_umbral})',
+                hoverinfo='none' # No interfiere con el hover principal
+            ))
+
+        # 3. Añadir la línea horizontal de alerta
+        fig.add_hline(
+            y=alerta_umbral, 
+            line_dash="dot", 
+            line_color="red",
+            annotation_text=f"Umbral Alerta ({alerta_umbral})", 
+            annotation_position="bottom right",
+            annotation_font_color="red"
+        )
+    # --- [FIN NUEVO] ---
+
+    # --- (Layout - SIN CAMBIOS) ---
+    fig.update_layout(
+        title=f"Tendencia de Llamadas Diarias (Días Hábiles): {title_str}",
+        xaxis_title=None,
+        yaxis_title="Total Llamadas",
+        plot_bgcolor=BG_COLOR,
+        paper_bgcolor=BG_COLOR,
+        font_color='white',
+        xaxis=dict(
+            gridcolor=GRID_COLOR, 
+            showgrid=False,
+            tickformat='%d-%b',
+        ),
+        yaxis=dict(
+            gridcolor=GRID_COLOR, 
+            showgrid=True,
+            zeroline=False
+        ),
+        margin=dict(l=50, r=20, t=50, b=20),
+        hovermode="x unified",
+        legend=dict( # <-- Añadir esto para la leyenda de la alerta
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            font=dict(color="white")
+        )
     )
     
     return fig

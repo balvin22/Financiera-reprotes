@@ -32,7 +32,7 @@ def main():
     tab3_data = data_processing.prepare_tab3_data(df_cartera_filtrada)
     tab4_data = data_processing.prepare_tab4_data(df_cartera_filtrada, df_novedades_filtrada)
     tab5_data = data_processing.prepare_tab5_data(df_cartera_filtrada)
-    tab6_data = data_processing.prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada,df_llamadas_filtrada,df_mensajeria_filtrada)
+    tab6_data = data_processing.prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada,df_llamadas_filtrada,df_mensajeria_filtrada,)
     
     # 4. Renderizar la página principal
     tab1, tab2, tab3, tab4,tab5, tab6 = st.tabs([

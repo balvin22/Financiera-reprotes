@@ -36,6 +36,8 @@ def render(tab6_data, charts_resultados):
     llamadas_stats = tab6_data.get("llamadas_stats", {})
     df_grafico_llamadas = tab6_data.get("df_grafico_llamadas", pd.DataFrame())
     df_efectividad_call = tab6_data.get("df_efectividad_call", pd.DataFrame())
+    df_llamadas_por_dia = tab6_data.get("df_llamadas_por_dia", pd.DataFrame())
+    alerta_umbral = tab6_data.get("alerta_umbral", 0)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -203,8 +205,12 @@ def render(tab6_data, charts_resultados):
                 llamadas_stats=llamadas_stats,
                 df_grafico_llamadas=df_grafico_llamadas,
                 df_llamadas_filtradas=df_llamadas_filtradas,
-                df_efectividad_call=df_efectividad_call
+                df_efectividad_call=df_efectividad_call,
+                df_llamadas_por_dia=df_llamadas_por_dia,
+                alerta_umbral=alerta_umbral # <-- [NUEVO]
             )
+
+            
         with tab_mensajeria:
             subtab_mensajeria.render(
                 df_mensajeria=df_mensajeria_filtrada,
@@ -212,4 +218,3 @@ def render(tab6_data, charts_resultados):
             )
     else:
         st.error("No se pudieron cargar los módulos de análisis adicional (sub-tabs).")
-

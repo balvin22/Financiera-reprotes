@@ -7,12 +7,10 @@ def render(df_mensajeria, df_cartera_detalle, df_funnel_mensajeria, df_efectivid
     Renderiza el contenido del sub-tab "Mensajería Call Center".
     """
     st.subheader("Registros de Mensajería")
-
-    # --- [MODIFICADO] Mostrar gráficos en columnas ---
     col_msg1, col_msg2 = st.columns(2)
 
     with col_msg1:
-        st.markdown("##### Embudo de Gestión")
+        st.markdown("##### Gestión de Mensajes")
         if not df_funnel_mensajeria.empty:
             fig_funnel = charts_call_center.create_mensajeria_funnel_chart(df_funnel_mensajeria)
             if fig_funnel:
@@ -32,8 +30,11 @@ def render(df_mensajeria, df_cartera_detalle, df_funnel_mensajeria, df_efectivid
                 st.info("No se pudieron generar datos para el gráfico de efectividad.")
         else:
             st.info("No hay datos disponibles para el gráfico de efectividad de mensajería.")
-    # --- [FIN MODIFICADO] ---
-    
+            3
+
+
+
+            
     st.markdown("---")
 
     # --- Mostrar la tabla de detalle ---

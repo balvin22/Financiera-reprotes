@@ -324,22 +324,14 @@ def create_mensajeria_funnel_chart(df_funnel):
     ))
     
     fig.update_layout(
-        title={
-            'text': "Gestión de Mensajes",
-            'yref': 'container',
-            'y':0.95,
-            'x':0.5,
-            'xanchor': 'center',
-            'yanchor': 'top',
-            'font': dict(size=20, color='black', family="Arial, sans-serif")
-        },
         yaxis_title=None,
-        xaxis=dict(visible=False), # Ocultar el eje X si no se desea ver la escala
-        plot_bgcolor='rgba(0,0,0,0)', # Fondo transparente del gráfico
-        paper_bgcolor='rgba(0,0,0,0)', # Fondo transparente del papel
-        margin=dict(l=20, r=20, t=50, b=20),
-        font=dict(color='black') # Color de fuente general, especialmente para el título.
+        xaxis=dict(visible=False), 
+        plot_bgcolor='rgba(0,0,0,0)', 
+        paper_bgcolor='rgba(0,0,0,0)', 
+        margin=dict(l=20, r=20, t=20, b=20), # <-- Reduje 't' de 50 a 20
+        font=dict(color='black')
     )
+    
     return fig
 
 def create_efectividad_mensajeria_chart(df_efectividad):

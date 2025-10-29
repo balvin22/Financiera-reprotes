@@ -23,7 +23,7 @@ def render(tab6_data, charts_resultados):
     La tabla de detalle solo muestra créditos asociados a Call Centers.
     Al final se añaden tabs con análisis adicionales.
     """
-    st.header("Análisis de Rendimiento de Call Centers")
+    st.header("Rendimiento de Call Centers")
     if not tab6_data or not any(key in tab6_data for key in ["reporte_raw", "rodamiento_data", "cartera_detallada_call_center"]):
         st.warning("No hay datos de Call Center para mostrar con los filtros seleccionados.")
         return

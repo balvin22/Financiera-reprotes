@@ -6,11 +6,13 @@ from src.views.graficos.base_dashboard import charts_call_center
 try:
     from . import subtab_llamadas
     from . import subtab_mensajeria
+    from . import  subtab_novedades_sistema
     IMPORT_SUCCESS = True
 except ImportError:
     try:
         import subtab_llamadas
         import subtab_mensajeria
+        import subtab_novedades_sistema
         IMPORT_SUCCESS = True
     except ImportError as e:
         st.error(f"Error crítico al importar sub-tabs: {e}")
@@ -199,9 +201,10 @@ def render(tab6_data, charts_resultados):
 
     if IMPORT_SUCCESS:
         st.header("Llamadas y Mensajeria")
-        tab_llamadas, tab_mensajeria = st.tabs([
+        tab_llamadas, tab_mensajeria, tab_novedades = st.tabs([
             "📞 Llamadas Call Center", 
-            "💬 Mensajería Call Center"
+            "💬 Mensajería Call Center",
+            "📋 Novedades del Sistema"
         ])
         with tab_llamadas:
             subtab_llamadas.render(
@@ -221,5 +224,7 @@ def render(tab6_data, charts_resultados):
                 df_funnel_mensajeria=df_funnel_mensajeria,
                 df_efectividad_mensajeria=df_efectividad_mensajeria
             )
+        with tab_novedades:
+            subtab_novedades_sistema    
     else:
         st.error("No se pudieron cargar los módulos de análisis adicional (sub-tabs).")

@@ -40,9 +40,6 @@ def render(tab3_data):
                 Recaudo_Meta_Total=('Recaudo_Meta_Total', 'sum')
             ).reset_index()
             datos_agregados_charts['Cumplimiento_%'] = (datos_agregados_charts['Recaudo_Total'] / datos_agregados_charts['Meta_Total']).fillna(0)
-
-            # --- NUEVA SECCIÓN DE GRÁFICOS CON LA DISTRIBUCIÓN DESEADA ---
-            
             # Definimos las dos columnas principales: 2/3 para la cuadrícula, 1/3 para el total
             col_izquierda, col_derecha = st.columns([2, 1])
 
@@ -89,9 +86,8 @@ def render(tab3_data):
                     title=titulo_grafico_total
                 )
                 st.plotly_chart(fig_gauge_total, use_container_width=True)
-
-            # --- Sección de Tablas de Detalle ---
             st.markdown("---")
+            # --- Sección de Tablas de Detalle ---
             st.header("Tabla de Detalle por Zona")
 
             expected_compliance, start_date, end_date = charts_resultados.calculate_expected_compliance()

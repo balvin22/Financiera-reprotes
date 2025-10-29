@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
 import io
@@ -23,7 +23,6 @@ def create_gauge_chart(value, meta, recaudo, faltante, title):
         value=gauge_value,
         title={'text': title, 'font': {'size': 20, 'color': text_color}},
         number={'suffix': "%", 'font': {'size': 30, 'color': text_color}}, # Font size reduced slightly
-        
         # --- CAMBIO 1: Subimos el medidor para crear espacio abajo ---
         domain={'y': [0.23, 1]},
         
@@ -61,7 +60,7 @@ def create_gauge_chart(value, meta, recaudo, faltante, title):
     return fig
 
 def calculate_expected_compliance():
-    today = date.today()
+    today = date.today() - timedelta(days=1)
     if today.day >= 5:
         start_date = today.replace(day=5)
         end_date = (today + relativedelta(months=1)).replace(day=4)

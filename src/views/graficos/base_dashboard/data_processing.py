@@ -179,37 +179,45 @@ def prepare_tab3_data(df):
     por Zona y Franja_Meta para el Tab de Resultados.
     Esta función es el único punto de procesamiento de datos para el Tab 3.
     """
-    franjas_a_usar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']
+
+    franjas_a_usar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']    
     df_para_grupo = df[df['Franja_Meta'].isin(franjas_a_usar)]
+    
+    zonas_a_excluir = ['CL1', 'CL2', 'CL3', 'CL4']
+    df_para_grupo = df_para_grupo[~df_para_grupo['Zona'].isin(zonas_a_excluir)]
 
     if df_para_grupo.empty:
         return pd.DataFrame()
 
-    # Columnas necesarias para los cálculos
+    # --- CAMBIO 1: Añadir 'Recaudo_Meta' a las columnas requeridas ---
     required_cols = {
         'Meta_$': 0,
-        'Total_Recaudo': 0,
+        # 'Total_Recaudo': 0, # Ya no es necesario para el cálculo principal
+        'Recaudo_Meta': 0,  # <-- AÑADIDO
         'Total_Recaudo_Sin_Anti': 0,
         'Meta_T.R_$': 0
     }
+    # (No hay cambios en el loop)
     for col, default in required_cols.items():
         if col not in df_para_grupo.columns:
             df_para_grupo[col] = default
-        # Asegurar que la columna sea numérica
         df_para_grupo[col] = pd.to_numeric(df_para_grupo[col], errors='coerce').fillna(0)
     
+    # (No hay cambios en group_by_cols)
     group_by_cols = ['Zona', 'Franja_Meta']
     if 'Regional_Cobro' in df_para_grupo.columns:
         group_by_cols.insert(0, 'Regional_Cobro')
 
+    # --- CAMBIO 2: Usar 'Recaudo_Meta' en la agregación ---
     resultados = df_para_grupo.groupby(group_by_cols).agg(
         Meta_Total=('Meta_$', 'sum'),
-        Recaudo_Total=('Total_Recaudo', 'sum'),
+        Recaudo_Total=('Recaudo_Meta', 'sum'), # <-- CAMBIADO (antes era 'Total_Recaudo')
         Recaudo_Sin_Anti_Total=('Total_Recaudo_Sin_Anti', 'sum'),
         Recaudo_Meta_Total=('Meta_T.R_$', 'sum')
     ).reset_index()
 
-    # Cálculo de cumplimiento, manejando división por cero de forma segura
+    # --- El resto de la función es idéntico ---
+    # El cálculo de 'Cumplimiento_%' ahora usará los datos correctos automáticamente
     resultados['Cumplimiento_%'] = 0.0
     mask_meta_valida = resultados['Meta_Total'] > 0
     resultados.loc[mask_meta_valida, 'Cumplimiento_%'] = (

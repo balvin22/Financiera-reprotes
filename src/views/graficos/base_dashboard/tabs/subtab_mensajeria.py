@@ -31,15 +31,3 @@ def render(df_mensajeria, df_cartera_detalle, df_funnel_mensajeria, df_efectivid
         else:
             st.info("No hay datos disponibles para el gráfico de efectividad de mensajería.")
     st.markdown("---")
-
-    # # --- Mostrar la tabla de detalle ---
-    # st.markdown("#### Detalle de Registros de Mensajería")
-    # if df_mensajeria.empty:
-    #     st.warning("No se encontraron registros de mensajería para los filtros seleccionados.")
-    #     return
-        
-    # st.info(f"Mostrando {len(df_mensajeria)} registros de mensajes que coinciden con los filtros.")
-    
-    # # Aquí puedes añadir filtros específicos para este tab
-    
-    # st.dataframe(df_mensajeria, use_container_width=True)

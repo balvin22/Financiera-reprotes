@@ -6,6 +6,7 @@ import ui_components
 from tabs import tab_metricas, tab_seguimientos, tab_resultados, tab_datos_detallados, tab_comercial,tab_call_center
 import src.views.graficos.base_dashboard.charts_resultados as chart_resultados
 import data_processing
+from src.services.call_centers.call_center_service import prepare_tab6_data
 import filtering
 
 st.set_page_config(layout="wide")
@@ -32,10 +33,16 @@ def main():
     tab3_data = data_processing.prepare_tab3_data(df_cartera_filtrada)
     tab4_data = data_processing.prepare_tab4_data(df_cartera_filtrada, df_novedades_filtrada)
     tab5_data = data_processing.prepare_tab5_data(df_cartera_filtrada)
-    tab6_data = data_processing.prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada,df_llamadas_filtrada,df_mensajeria_filtrada,)
+    # tab6_data = data_processing.prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada,df_llamadas_filtrada,df_mensajeria_filtrada,)
+    tab6_data = prepare_tab6_data(
+        df_cartera_filtrada, 
+        df_novedades_filtrada,
+        df_llamadas_filtrada,
+        df_mensajeria_filtrada
+    )
     
     # 4. Renderizar la página principal
-    tab1, tab2, tab3, tab4,tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4,tab5,tab6  = st.tabs([
         "📈 Métricas Principales",
         "🔄 Seguimientos",
         "🎯 Resultados",

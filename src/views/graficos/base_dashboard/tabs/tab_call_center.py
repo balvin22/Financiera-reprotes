@@ -201,10 +201,10 @@ def render(tab6_data, charts_resultados):
 
     if IMPORT_SUCCESS:
         st.header("Llamadas y Mensajeria")
-        tab_llamadas, tab_mensajeria, tab_novedades = st.tabs([
+        tab_llamadas, tab_mensajeria,= st.tabs([
             "📞 Llamadas Call Center", 
             "💬 Mensajería Call Center",
-            "📋 Novedades del Sistema"
+            # "📋 Novedades del Sistema"
         ])
         with tab_llamadas:
             subtab_llamadas.render(
@@ -224,7 +224,7 @@ def render(tab6_data, charts_resultados):
                 df_funnel_mensajeria=df_funnel_mensajeria,
                 df_efectividad_mensajeria=df_efectividad_mensajeria
             )
-        with tab_novedades:
-            subtab_novedades_sistema    
+        # with tab_novedades:
+        #     subtab_novedades_sistema    
     else:
         st.error("No se pudieron cargar los módulos de análisis adicional (sub-tabs).")

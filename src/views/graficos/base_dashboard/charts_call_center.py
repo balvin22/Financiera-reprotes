@@ -92,81 +92,145 @@ def create_estado_llamadas_bar_chart(df_grafico_llamadas):
 def create_efectividad_call_chart(df_efectividad):
     """
     Crea un gráfico de barras horizontales que muestra la efectividad de
-    llamadas por Call Center.
+    llamadas por Call Center, con barras estilizadas (finas y redondeadas).
+
+    [CAMBIO]: El texto de efectividad se mueve DENTRO de la barra (color blanco)
+    si la efectividad supera el 90% para evitar colisiones.
     
-    [CAMBIO]: Muestra DOS etiquetas de texto:
-    1. La efectividad (% y Con_Respuesta) al final de la barra azul.
-    2. El Total_Intentos al final de la barra gris (100%).
+    [CAMBIO]: Se usa un estilo de barras redondeadas unificado.
+    
+    [CAMBIO]: Se usan Anotaciones para el texto del Total para un control preciso.
     """
     if df_efectividad.empty:
         return None
-    
-    # Asegurarse de que las columnas necesarias existen
-    if not all(col in df_efectividad.columns for col in ['Call_Center', 'Efectividad', 'Con_Respuesta', 'Total_Intentos']):
-         print("Error: Faltan columnas clave en df_efectividad (Call_Center, Efectividad, Con_Respuesta, Total_Intentos)")
-         return None
 
-    df_chart = df_efectividad.sort_values(by='Efectividad', ascending=True)
+    # Asegurarse de que las columnas necesarias existen
+    cols_necesarias = ['Call_Center', 'Efectividad', 'Con_Respuesta', 'Total_Intentos']
+    if not all(col in df_efectividad.columns for col in cols_necesarias):
+        print(f"Error: Faltan columnas clave. Se necesitan: {cols_necesarias}")
+        return None
+
+    # [CAMBIO]: Ordenar y resetear el índice para que las anotaciones funcionen
+    df_chart = df_efectividad.sort_values(by='Efectividad', ascending=True).reset_index(drop=True)
+
+    # --- 1. Formateo de Texto (como lo tenías) ---
     def format_text_efectividad(row):
         pct = f"{row['Efectividad']:.2%}".replace('.', ',')
         count = f"{row['Con_Respuesta']:,.0f}".replace(',', '.')
         return f"<b>{pct}</b> ({count})"
         
     df_chart['Texto_Efectividad'] = df_chart.apply(format_text_efectividad, axis=1)
+
     def format_text_total(row):
         total = f"{row['Total_Intentos']:,.0f}".replace(',', '.')
         return f"<b>{total}</b>"
         
     df_chart['Texto_Total'] = df_chart.apply(format_text_total, axis=1)
+
+    # --- 2. [NUEVO] Lógica de posicionamiento y color ---
+    # Define un umbral. Si es > 85%, el texto va adentro.
+    umbral_colision = 0.85 
+    
+    df_chart['text_position'] = df_chart['Efectividad'].apply(
+        lambda x: 'inside' if x > umbral_colision else 'outside'
+    )
+    df_chart['text_color'] = df_chart['Efectividad'].apply(
+        lambda x: 'white' if x > umbral_colision else '#333333'
+    )
+
+    # --- 3. Estilos para las barras (tus valores) ---
+    bar_thickness = 0.5  # Controla qué tan "finita" es la barra
+    border_radius = 15   # Controla el redondeo de las esquinas
+
+    # --- 4. Crear la figura base ---
     fig = go.Figure()
+
+    # --- 5. Barra de fondo (gris) ---
     fig.add_trace(go.Bar(
         y=df_chart['Call_Center'],
         x=[1] * len(df_chart), # Barra al 100%
         orientation='h',
-        marker=dict(color='rgba(230, 230, 230, 0.9)'), # Gris claro
+        width=bar_thickness,
+        marker=dict(
+            color='rgba(230, 230, 230, 0.9)', 
+            cornerradius=border_radius # <-- [CAMBIO] Redondeo completo
+        ), 
         hoverinfo='none',
-        showlegend=False,
-        text=df_chart['Texto_Total'], # <-- [CAMBIO] Texto del Total
-        textposition='outside',
-        textfont=dict(color='#333333', size=11)
+        showlegend=False
+        # [CAMBIO]: Quitamos el texto de aquí. Usaremos anotaciones.
     ))
+
+    # --- 6. Barra de efectividad (azul) ---
     fig.add_trace(go.Bar(
         y=df_chart['Call_Center'],
         x=df_chart['Efectividad'],
         orientation='h',
-        marker=dict(color='#3366CC'), 
+        width=bar_thickness,
+        marker=dict(
+            color='#3366CC',
+            cornerradius=border_radius # <-- [CAMBIO] Redondeo completo
+        ), 
         hoverinfo='none',
         showlegend=False,
-        text=df_chart['Texto_Efectividad'], # <-- [CAMBIO] Texto de Efectividad
-        textposition='outside',
-        textfont=dict(color='#333333', size=11) # Color del texto después de la barra azul
+        text=df_chart['Texto_Efectividad'],
+        
+        # --- [CAMBIO CLAVE] ---
+        # Usa las listas que creamos en Pandas
+        textposition=df_chart['text_position'], 
+        textfont=dict(
+            color=df_chart['text_color'], 
+            size=11,
+            family="Arial, sans-serif"
+        ),
+        # Asegura que el texto "inside" se alinee a la derecha
+        insidetextanchor='end' 
     ))
 
-    # 5. Configurar el layout
+    # --- 7. Configurar el layout ---
     fig.update_layout(
         title_text='% = Llamadas con respuesta / Total de intentos',
         title_x=0.05, 
         title_font_size=14,
         title_font_family="Arial, sans-serif",
-        barmode='overlay', 
+        barmode='overlay',
+        bargap=0,        
+        bargroupgap=0, 
         xaxis=dict(
             showticklabels=False,
             showgrid=False,
             zeroline=False,
-            range=[0, 1.4], # <-- Rango amplio para que quepan ambos textos
+            range=[0, 1.4], # Rango amplio para que quepan ambos textos
             fixedrange=True
         ),
         yaxis=dict(
             showgrid=False,
             zeroline=False,
             fixedrange=True,
-            tickfont=dict(size=12, color='#333333')
+            tickfont=dict(size=12, color='#333333'),
+            # [CAMBIO]: Asegurar el orden de las categorías
+            categoryorder='array',
+            categoryarray=df_chart['Call_Center']
         ),
         yaxis_title=None,
-        margin=dict(l=50, r=20, t=50, b=20),
+        # [CAMBIO]: Aumentar margen derecho para el texto del total
+        margin=dict(l=50, r=80, t=50, b=5), 
         plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=450 # Ajusta la altura si es necesario
     )
+    
+    # --- 8. [NUEVO] Añadir el texto del 'Total_Intentos' usando anotaciones ---
+    for i, row in df_chart.iterrows():
+        fig.add_annotation(
+            x=1.03, # Posición X fija (un poco más allá del 100%)
+            y=row['Call_Center'], # Posición Y basada en la categoría
+            text=row['Texto_Total'],
+            showarrow=False,
+            font=dict(size=11, color='#333333', family="Arial, sans-serif"),
+            xanchor='left', # Anclar el texto a la izquierda de la posición X
+            yanchor='middle'
+        )
+    
     return fig
 
 def create_llamadas_por_dia_area_chart(df_llamadas_dia, filtros_respuesta: list, alerta_umbral: int):
@@ -338,24 +402,26 @@ def create_efectividad_mensajeria_chart(df_efectividad):
     """
     Crea un gráfico de barras horizontales que muestra la efectividad de
     mensajería (Conversaciones / Entregados) por Call Center.
-    Muestra DOS etiquetas de texto:
-    1. La efectividad (% y Total_Conversaciones) al final de la barra azul.
-    2. El Total_Entregados al final de la barra gris (100%).
+    
+    [CAMBIO]: El texto de efectividad se mueve DENTRO de la barra (color blanco)
+    si la efectividad supera el 90% para evitar colisiones.
+    
+    [CAMBIO]: Se usa un estilo de barras finas y redondeadas.
+    
+    [CAMBIO]: Se usan Anotaciones para el texto del Total para un control preciso.
     """
     if df_efectividad.empty:
         return None
     
-    # Asegurarse de que las columnas necesarias existen
     cols_necesarias = ['Call_Center', 'Efectividad', 'Total_Conversaciones', 'Total_Entregados']
     if not all(col in df_efectividad.columns for col in cols_necesarias):
-         print(f"Error: Faltan columnas clave en df_efectividad_mensajeria. Se necesitan: {cols_necesarias}")
+         print(f"Error: Faltan columnas clave. Se necesitan: {cols_necesarias}")
          return None
 
-    df_chart = df_efectividad.sort_values(by='Efectividad', ascending=True)
+    # Ordenar y resetear el índice para que las anotaciones funcionen
+    df_chart = df_efectividad.sort_values(by='Efectividad', ascending=True).reset_index(drop=True)
 
-    # 1. Crear AMBOS formatos de texto
-    
-    # Texto para la barra azul (Efectividad)
+    # --- 1. Formateo de Texto (como lo tenías) ---
     def format_text_efectividad(row):
         pct = f"{row['Efectividad']:.2%}".replace('.', ',')
         count = f"{row['Total_Conversaciones']:,.0f}".replace(',', '.')
@@ -363,50 +429,80 @@ def create_efectividad_mensajeria_chart(df_efectividad):
         
     df_chart['Texto_Efectividad'] = df_chart.apply(format_text_efectividad, axis=1)
 
-    # Texto para la barra gris (Total)
     def format_text_total(row):
         total = f"{row['Total_Entregados']:,.0f}".replace(',', '.')
         return f"<b>{total}</b>"
         
     df_chart['Texto_Total'] = df_chart.apply(format_text_total, axis=1)
 
+    # --- 2. [NUEVO] Lógica de posicionamiento y color ---
+    # Define un umbral. Si es >85%, el texto va adentro.
+    umbral_colision = 0.85 
+    
+    df_chart['text_position'] = df_chart['Efectividad'].apply(
+        lambda x: 'inside' if x > umbral_colision else 'outside'
+    )
+    df_chart['text_color'] = df_chart['Efectividad'].apply(
+        lambda x: 'white' if x > umbral_colision else '#333333'
+    )
 
-    # 2. Crear la figura base
+    # --- 3. [NUEVO] Estilos de barra ---
+    bar_thickness = 0.5
+    border_radius_px = 15
+
+    # --- 4. Crear la figura base ---
     fig = go.Figure()
 
-    # 3. Añadir la barra de fondo (gris) con el texto del TOTAL
+    # --- 5. Barra de fondo (gris) ---
     fig.add_trace(go.Bar(
         y=df_chart['Call_Center'],
         x=[1] * len(df_chart), # Barra al 100%
         orientation='h',
-        marker=dict(color='rgba(230, 230, 230, 0.9)'), # Gris claro
+        width=bar_thickness, # <-- Estilo
+        marker=dict(
+            color='rgba(230, 230, 230, 0.9)', 
+            cornerradius=border_radius_px # <-- Estilo
+        ), 
         hoverinfo='none',
-        showlegend=False,
-        text=df_chart['Texto_Total'],
-        textposition='outside',
-        textfont=dict(color='#333333', size=11)
+        showlegend=False
+        # [CAMBIO]: Quitamos el texto de aquí. Usaremos anotaciones.
     ))
 
-    # 4. Añadir la barra de efectividad (azul) con el texto de EFECTIVIDAD
+    # --- 6. Barra de efectividad (azul) ---
     fig.add_trace(go.Bar(
         y=df_chart['Call_Center'],
         x=df_chart['Efectividad'],
         orientation='h',
-        marker=dict(color='#3366CC'), 
+        width=bar_thickness, # <-- Estilo
+        marker=dict(
+            color='#3366CC',
+            cornerradius=border_radius_px # <-- Estilo
+        ), 
         hoverinfo='none',
         showlegend=False,
         text=df_chart['Texto_Efectividad'],
-        textposition='outside',
-        textfont=dict(color='#333333', size=11) # Color del texto después de la barra azul
+        
+        # --- [CAMBIO CLAVE] ---
+        # Usa las listas que creamos en Pandas
+        textposition=df_chart['text_position'], 
+        textfont=dict(
+            color=df_chart['text_color'], 
+            size=11,
+            family="Arial, sans-serif"
+        ),
+        # Asegura que el texto "inside" se alinee a la derecha
+        insidetextanchor='end' 
     ))
 
-    # 5. Configurar el layout
+    # --- 7. Configurar el layout ---
     fig.update_layout(
         title_text='% = Conversaciones / Mensajes Entregados',
         title_x=0.05, 
         title_font_size=14,
         title_font_family="Arial, sans-serif",
-        barmode='overlay', 
+        barmode='overlay',
+        bargap=0, 
+        bargroupgap=0, 
         xaxis=dict(
             showticklabels=False,
             showgrid=False,
@@ -418,12 +514,30 @@ def create_efectividad_mensajeria_chart(df_efectividad):
             showgrid=False,
             zeroline=False,
             fixedrange=True,
-            tickfont=dict(size=12, color='#333333')
+            tickfont=dict(size=12, color='#333333'),
+            # [CAMBIO]: Asegurar el orden de las categorías
+            categoryorder='array',
+            categoryarray=df_chart['Call_Center']
         ),
         yaxis_title=None,
-        margin=dict(l=50, r=20, t=50, b=20),
+        # [CAMBIO]: Aumentar margen derecho para el texto del total
+        margin=dict(l=50, r=80, t=50, b=20), 
         plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=400 # Ajusta la altura si es necesario
     )
+    
+    # --- 8. [NUEVO] Añadir el texto del 'Total_Entregados' usando anotaciones ---
+    # Esto da un control preciso y evita TODAS las colisiones.
+    for i, row in df_chart.iterrows():
+        fig.add_annotation(
+            x=1.03, # Posición X fija (un poco más allá del 100%)
+            y=row['Call_Center'], # Posición Y basada en la categoría
+            text=row['Texto_Total'],
+            showarrow=False,
+            font=dict(size=11, color='#333333', family="Arial, sans-serif"),
+            xanchor='left', # Anclar el texto a la izquierda de la posición X
+            yanchor='middle'
+        )
     
     return fig

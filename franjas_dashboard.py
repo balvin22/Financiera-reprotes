@@ -149,6 +149,8 @@ if uploaded_file is not None:
     df_gestores_franjas = df_franjas[df_franjas['ZONA'].str.startswith('G.')].copy()
     df_zonas_franjas = df_franjas[~df_franjas['ZONA'].str.startswith('G.')].copy()
     df_rodamientos['ZONA'] = df_rodamientos['ZONA'].astype(str)
+    df_franjas['FRANJA'] = df_franjas['FRANJA'].astype(str)
+    df_rodamientos['FRANJA'] = df_rodamientos['FRANJA'].astype(str)
     df_gestores_rodamientos = df_rodamientos[df_rodamientos['ZONA'].str.startswith('G.')].copy()
     df_zonas_rodamientos = df_rodamientos[~df_rodamientos['ZONA'].str.startswith('G.')].copy()
 

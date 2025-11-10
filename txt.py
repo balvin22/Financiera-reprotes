@@ -2,10 +2,10 @@ import time
 
 # --- 1. CONFIGURACIÓN DE ARCHIVOS ---
 # Archivo principal (el que quieres limpiar)
-archivo_principal = 'c:/Users/sb118/Downloads/USU10791_20251104 CLIENTES.txt'
+archivo_principal = 'c:/Users/usuario/Downloads/USU10791_20251110 CLIENTES.txt'
 
 # Archivo con los registros que quieres eliminar
-archivo_a_quitar = 'c:/Users/sb118/Downloads/USU10791_20251028.txt'
+archivo_a_quitar = 'c:/Users/usuario/Downloads/USU10791_20251105 CLIENTES.txt'
 
 # Archivo donde se guardará el resultado limpio
 archivo_salida = 'CLIENTES_FILTRADOS.txt'

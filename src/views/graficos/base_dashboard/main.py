@@ -11,6 +11,7 @@ import filtering
 
 st.set_page_config(layout="wide")
 
+
 def main():
     st.title("📊 Dashboard de Información de Cartera")
     uploaded_file = st.sidebar.file_uploader(
@@ -19,8 +20,12 @@ def main():
     if not uploaded_file:
         st.info("Por favor, carga un archivo para comenzar.")
         return
-    df_cartera, df_novedades, df_llamadas, df_mensajeria = data_loader.load_and_process_data(uploaded_file) 
+    
+    # MODIFICACIÓN 1: Ahora load_and_process_data devuelve 5 valores, incluido 'alerts'
+    df_cartera, df_novedades, df_llamadas, df_mensajeria, alerts = data_loader.load_and_process_data(uploaded_file) 
+    
     if df_cartera is None:
+        # Si df_cartera es None, el error crítico se muestra en data_loader.
         return
     
     df_cartera = filtering.add_call_center_column(df_cartera)
@@ -33,7 +38,7 @@ def main():
     tab3_data = data_processing.prepare_tab3_data(df_cartera_filtrada)
     tab4_data = data_processing.prepare_tab4_data(df_cartera_filtrada, df_novedades_filtrada)
     tab5_data = data_processing.prepare_tab5_data(df_cartera_filtrada)
-    # tab6_data = data_processing.prepare_tab6_data(df_cartera_filtrada, df_novedades_filtrada,df_llamadas_filtrada,df_mensajeria_filtrada,)
+    
     tab6_data = prepare_tab6_data(
         df_cartera_filtrada, 
         df_novedades_filtrada,
@@ -53,7 +58,7 @@ def main():
 
     with tab1:
         tab_metricas.render(tab1_data)
-                  
+                        
     with tab2:
         tab_seguimientos.render(tab2_data)
 
@@ -67,7 +72,8 @@ def main():
         tab_comercial.render(tab5_data)
         
     with tab6:
-        tab_call_center.render(tab6_data, chart_resultados)    
+        # MODIFICACIÓN 2: Pasar el diccionario de alertas al renderizador de la pestaña 6
+        tab_call_center.render(tab6_data, chart_resultados, alerts)    
         
 if __name__ == "__main__":
     main()

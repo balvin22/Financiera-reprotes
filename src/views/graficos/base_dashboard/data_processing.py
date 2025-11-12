@@ -176,8 +176,7 @@ def prepare_tab2_data(df_cartera, df_novedades):
 def prepare_tab3_data(df):
     """
     Toma el dataframe filtrado globalmente y realiza la agregación principal
-    por Zona y Franja_Meta para el Tab de Resultados.
-    Esta función es el único punto de procesamiento de datos para el Tab 3.
+    por Zona y Franja_Meta y ahora por Cobrador para el Tab de Resultados.
     """
 
     franjas_a_usar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']    
@@ -187,43 +186,66 @@ def prepare_tab3_data(df):
     df_para_grupo = df_para_grupo[~df_para_grupo['Zona'].isin(zonas_a_excluir)]
 
     if df_para_grupo.empty:
-        return pd.DataFrame()
+        return {"resultados_zona": pd.DataFrame(), "resultados_cobrador": pd.DataFrame()}
 
-    # --- CAMBIO 1: Añadir 'Recaudo_Meta' a las columnas requeridas ---
+    # --- 1. Preparación de columnas requeridas ---
     required_cols = {
         'Meta_$': 0,
-        # 'Total_Recaudo': 0, # Ya no es necesario para el cálculo principal
-        'Recaudo_Meta': 0,  # <-- AÑADIDO
+        'Recaudo_Meta': 0,  
         'Total_Recaudo_Sin_Anti': 0,
         'Meta_T.R_$': 0
     }
-    # (No hay cambios en el loop)
     for col, default in required_cols.items():
         if col not in df_para_grupo.columns:
             df_para_grupo[col] = default
         df_para_grupo[col] = pd.to_numeric(df_para_grupo[col], errors='coerce').fillna(0)
     
-    # (No hay cambios en group_by_cols)
-    group_by_cols = ['Zona', 'Franja_Meta']
+    # --- 2. Agregación Principal por Zona y Franja_Meta (para gráficos/tablas existentes) ---
+    group_by_cols_zona = ['Zona', 'Franja_Meta']
     if 'Regional_Cobro' in df_para_grupo.columns:
-        group_by_cols.insert(0, 'Regional_Cobro')
+        group_by_cols_zona.insert(0, 'Regional_Cobro')
 
-    # --- CAMBIO 2: Usar 'Recaudo_Meta' en la agregación ---
-    resultados = df_para_grupo.groupby(group_by_cols).agg(
+    resultados_zona = df_para_grupo.groupby(group_by_cols_zona).agg(
         Meta_Total=('Meta_$', 'sum'),
-        Recaudo_Total=('Recaudo_Meta', 'sum'), # <-- CAMBIADO (antes era 'Total_Recaudo')
+        Recaudo_Total=('Recaudo_Meta', 'sum'), 
         Recaudo_Sin_Anti_Total=('Total_Recaudo_Sin_Anti', 'sum'),
         Recaudo_Meta_Total=('Meta_T.R_$', 'sum')
     ).reset_index()
 
-    # --- El resto de la función es idéntico ---
-    # El cálculo de 'Cumplimiento_%' ahora usará los datos correctos automáticamente
-    resultados['Cumplimiento_%'] = 0.0
-    mask_meta_valida = resultados['Meta_Total'] > 0
-    resultados.loc[mask_meta_valida, 'Cumplimiento_%'] = (
-        resultados.loc[mask_meta_valida, 'Recaudo_Total'] / resultados.loc[mask_meta_valida, 'Meta_Total']
+    resultados_zona['Cumplimiento_%'] = 0.0
+    mask_meta_valida_zona = resultados_zona['Meta_Total'] > 0
+    resultados_zona.loc[mask_meta_valida_zona, 'Cumplimiento_%'] = (
+        resultados_zona.loc[mask_meta_valida_zona, 'Recaudo_Total'] / resultados_zona.loc[mask_meta_valida_zona, 'Meta_Total']
     )
-    return resultados
+    
+    # --- 3. NUEVA Agregación por Cobrador ---
+    # Usamos las mismas métricas
+    group_by_cols_cobrador = ['Cobrador', 'Franja_Meta']
+    if 'Regional_Cobro' in df_para_grupo.columns:
+         group_by_cols_cobrador.insert(0, 'Regional_Cobro')
+    
+    # Eliminamos las filas donde el cobrador es nulo o vacío
+    df_cobrador = df_para_grupo[df_para_grupo['Cobrador'].notna() & (df_para_grupo['Cobrador'] != '')].copy()
+
+    resultados_cobrador = df_cobrador.groupby(group_by_cols_cobrador).agg(
+        Meta_Total=('Meta_$', 'sum'),
+        Recaudo_Total=('Recaudo_Meta', 'sum'), 
+        Recaudo_Sin_Anti_Total=('Total_Recaudo_Sin_Anti', 'sum'),
+        Recaudo_Meta_Total=('Meta_T.R_$', 'sum')
+    ).reset_index()
+    
+    resultados_cobrador['Cumplimiento_%'] = 0.0
+    mask_meta_valida_cobrador = resultados_cobrador['Meta_Total'] > 0
+    resultados_cobrador.loc[mask_meta_valida_cobrador, 'Cumplimiento_%'] = (
+        resultados_cobrador.loc[mask_meta_valida_cobrador, 'Recaudo_Total'] / resultados_cobrador.loc[mask_meta_valida_cobrador, 'Meta_Total']
+    )
+
+
+    # Devolver un diccionario con ambos DataFrames
+    return {
+        "resultados_zona": resultados_zona, 
+        "resultados_cobrador": resultados_cobrador # <-- NUEVO DATAFRAME
+    }
 
 @st.cache_data
 def prepare_tab4_data(df_cartera, df_novedades):

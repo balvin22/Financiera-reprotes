@@ -158,7 +158,7 @@ def render(tab2_data):
             # Añade aquí todas las demás columnas que desees
         ]
         columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedad','Tipo_Novedad',
-                                'Novedades_Por_Cargo']
+                                'Novedades_Por_Cargo',]
         columnas_seleccionadas = st.multiselect(
             "Selecciona las columnas a visualizar en la tabla:",
             options=todas_las_columnas_disponibles,
@@ -275,8 +275,8 @@ def render(tab2_data):
             df_tabla = df_tabla[df_tabla['Estado_Pago'].isin(selected_pagos)]
                 
         todas_las_columnas_posibles = [
-            'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular',
-            'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 
+            'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente',
+            'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 'Franja_Cartera',
             'Telefono_Codeudor2','Dias_Atraso_Final', 'Total_Recaudo',  'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
             'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Meta_$'
             
@@ -285,7 +285,7 @@ def render(tab2_data):
         columnas_seleccionadas = st.multiselect(
             "Selecciona las columnas a mostrar en la tabla:",
             options=columnas_disponibles,
-            default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Rodamiento','Meta_$','Meta_Saldo','Meta_Intereses',
+            default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Franja_Cartera','Rodamiento','Meta_$','Meta_Saldo','Meta_Intereses', 'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente',
                      'Valor_Vencido']
         )
         

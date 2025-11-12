@@ -1,3 +1,4 @@
+# src/services/call_centers/call_center_service.py
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -33,7 +34,8 @@ def _handle_empty_input():
     }
 
 # --- 2. Funciones Ayudantes: Procesamiento de Cartera y Reporte ---
-# (Esta lógica se queda aquí ya que es central para el reporte)
+# (Lógica omitida, asumiendo que es correcta)
+
 def _clean_cartera_df(df: pd.DataFrame) -> pd.DataFrame:
     """Limpia y estandariza las columnas del DataFrame de cartera."""
     df['Estado_Pago'] = np.where(df['Total_Recaudo'] > 50000, 'PAGO', 'SIN PAGO') if 'Total_Recaudo' in df.columns else 'SIN DATO'
@@ -154,8 +156,11 @@ def _process_novedades_por_call(df_novedades: pd.DataFrame, df_llamadas: pd.Data
     default_return = {
         "df_novedades_mapeadas": pd.DataFrame(),
         "df_agg_novedades_por_call": pd.DataFrame(),
-        "df_agg_novedades_por_tipo": pd.DataFrame()
+        "df_agg_novedades_por_tipo": pd.DataFrame(),
+        "novedades_alert": None # NUEVA CLAVE PARA ALERTA
     }
+    
+    TARGET_ALERT_MESSAGE = "No hay suficientes datos para cruzar Novedades del Sistema con Call Centers (desde Llamadas)."
 
     # Validar DFs y columnas necesarias
     if df_novedades.empty or df_llamadas.empty or \
@@ -163,7 +168,8 @@ def _process_novedades_por_call(df_novedades: pd.DataFrame, df_llamadas: pd.Data
        'Nombre_Call' not in df_llamadas.columns or \
        'Call_Center_Limpio' not in df_llamadas.columns:
         
-        st.info("No hay suficientes datos para cruzar Novedades del Sistema con Call Centers (desde Llamadas).")
+        # CAMBIO CLAVE: NO llamamos a st.info(). Devolvemos la alerta.
+        default_return['novedades_alert'] = TARGET_ALERT_MESSAGE
         return default_return
 
     try:
@@ -177,7 +183,8 @@ def _process_novedades_por_call(df_novedades: pd.DataFrame, df_llamadas: pd.Data
         lookup_list = list(df_map[['normalized_set', 'Call_Center_Limpio']].itertuples(index=False, name=None))
 
         if not lookup_list:
-            st.warning("No se pudieron generar nombres de agentes desde el archivo de llamadas.")
+            # CAMBIO CLAVE: Devolvemos la alerta si no hay mapa de agentes
+            default_return['novedades_alert'] = "No se pudieron generar nombres de agentes desde el archivo de llamadas."
             return default_return
 
         # --- Paso 2: Normalizar y Mapear Novedades ---
@@ -208,11 +215,13 @@ def _process_novedades_por_call(df_novedades: pd.DataFrame, df_llamadas: pd.Data
         return {
             "df_novedades_mapeadas": df_nov,
             "df_agg_novedades_por_call": df_agg_novedades_por_call,
-            "df_agg_novedades_por_tipo": df_agg_novedades_por_tipo
+            "df_agg_novedades_por_tipo": df_agg_novedades_por_tipo,
+            "novedades_alert": None # Éxito, no hay alerta
         }
 
     except Exception as e:
         st.error(f"Error al procesar el cruce de novedades y llamadas: {e}")
+        default_return['novedades_alert'] = f"Error al procesar el cruce de novedades: {e}"
         return default_return
 
 

@@ -3,18 +3,16 @@ import streamlit as st
 import pandas as pd
 
 @st.cache_data(ttl=3600, show_spinner=False)
-@st.cache_data(ttl=3600, show_spinner=False)
 def load_and_process_data(uploaded_file):
     """
-    Carga y procesa eficientemente los datos desde un archivo Excel,
-    leyendo únicamente las columnas especificadas para optimizar el rendimiento.
-
-    Las hojas 'Analisis_de_Cartera' y 'Detalle_Novedades' son críticas.
-    Las hojas 'Reporte_Llamadas' y 'Reporte_Mensajes' son opcionales y
-    se cargarán si existen.
+    Carga y procesa eficientemente los datos desde un archivo Excel.
     
+    Las hojas 'Reporte_Llamadas' y 'Reporte_Mensajes' son opcionales.
+    Las alertas de carga ahora se recolectan y se devuelven en un diccionario.
+    La alerta de negocio de "Novedades del Sistema" ha sido eliminada.
+
     Retorna:
-        (df_cartera, df_novedades, df_llamadas, df_mensajeria)
+        (df_cartera, df_novedades, df_llamadas, df_mensajeria, alerts)
     """
     
     cols_cartera = [
@@ -27,8 +25,8 @@ def load_and_process_data(uploaded_file):
         "Codigo_Vendedor", "Nombre_Call_Center", "Telefono_Call_Center",
         "Telefono_Gestor", "Valor_Desembolso", "Movil_Vendedor", "Vendedor_Activo",
         "Lider_Zona", "Codeudor1", "Total_Cuotas", "Nombre_Codeudor1",
-        "Telefono_Codeudor1", "Ciudad_Codeudor1", "Codeudor2", "Telefono_Codeudor2",
-        "Ciudad_Codeudor2", "Valor_Cuota", "Dias_Atraso", "Franja_Cartera",
+        "Telefono_Codeudor1", "Ciudad_Codeudor1", "Codeudor2", "Nombre_Codeudor2",
+        "Telefono_Codeudor2", "Ciudad_Codeudor2", "Valor_Cuota", "Dias_Atraso", "Franja_Cartera",
         "Meta_Intereses", "Meta_Saldo", "Meta_%", "Meta_$", "Meta_T.R_%","Meta_General",
         "Meta_T.R_$", "Cuotas_Pagadas", "Fecha_Cuota_Atraso", "Primera_Cuota_Mora",
         "Valor_Cuota_Atraso", "Valor_Vencido", "Dias_Atraso_Final","Fecha_Ultimo_pago","Rango_Ultimo_pago",
@@ -56,6 +54,14 @@ def load_and_process_data(uploaded_file):
     df_mensajeria = pd.DataFrame()
     df_cartera = None
     df_novedades = None
+    
+    # INICIALIZACIÓN: Diccionario para recolectar alertas.
+    # ELIMINAMOS la alerta de 'novedades_error' para que no se muestre por defecto.
+    alerts = {
+        'llamadas_error': None,
+        'mensajeria_error': None,
+        'novedades_error': None # Ahora es None por defecto
+    }
 
     try: 
         df_cartera = pd.read_excel(
@@ -84,8 +90,8 @@ def load_and_process_data(uploaded_file):
                 df_novedades[col] = pd.to_datetime(df_novedades[col], errors="coerce").dt.date
 
         str_cols = ["Empresa", "Regional_Venta", "Nombre_Ciudad", "Nombre_Vendedor", 
-                    "Franja_Meta", "Rodamiento", "Gestor", "Regional_Cobro", 
-                    "Zona_Cobro", "Zona"]
+                     "Franja_Meta", "Rodamiento", "Gestor", "Regional_Cobro", 
+                     "Zona_Cobro", "Zona"]
         for col in str_cols:
             if col in df_cartera.columns:
                 df_cartera[col] = df_cartera[col].astype(str).str.strip()
@@ -98,6 +104,8 @@ def load_and_process_data(uploaded_file):
 
         if 'Cedula_Cliente' in df_novedades.columns:
             df_novedades['Cedula_Cliente'] = df_novedades['Cedula_Cliente'].astype(str).str.strip()
+            
+        # 1. Cargar Reporte_Llamadas
         try:
             df_llamadas = pd.read_excel(
                 uploaded_file,
@@ -118,7 +126,8 @@ def load_and_process_data(uploaded_file):
                     df_llamadas[col] = df_llamadas[col].astype(str).str.strip()
 
         except Exception as e:
-            st.warning(f"Nota: No se pudo cargar la hoja 'Reporte_Llamadas'. Causa: {e}")
+            # Recolectar la alerta en lugar de mostrarla
+            alerts['llamadas_error'] = f"Nota: No se pudo cargar la hoja 'Reporte_Llamadas'. Causa: {e}"
 
         # 2. Cargar Reporte_Mensajes
         try:
@@ -143,9 +152,16 @@ def load_and_process_data(uploaded_file):
                 if col in df_mensajeria.columns:
                     df_mensajeria[col] = df_mensajeria[col].astype(str).str.strip()
         except Exception as e:
-            st.warning(f"Nota: No se pudo cargar la hoja 'Reporte_Mensajes'. Causa: {e}")
-        return df_cartera, df_novedades, df_llamadas, df_mensajeria
+            # Recolectar la alerta en lugar de mostrarla
+            alerts['mensajeria_error'] = f"Nota: No se pudo cargar la hoja 'Reporte_Mensajes'. Causa: {e}"
+            
+        # Lógica de la alerta de negocio de Novedades del Sistema ha sido ELIMINADA
+        # No se inicializa ni se sobreescribe, por lo que queda como None y no se muestra.
+            
+        # Devolver el diccionario de alertas como quinto valor
+        return df_cartera, df_novedades, df_llamadas, df_mensajeria, alerts
 
     except Exception as e:
+        # Alerta crítica: las hojas principales (Cartera o Novedades) no se cargaron.
         st.error(f"Error crítico al leer las hojas principales (Cartera o Novedades). Asegúrate de que existan. Error: {e}")
-        return None, None, None, None
+        return None, None, None, None, alerts

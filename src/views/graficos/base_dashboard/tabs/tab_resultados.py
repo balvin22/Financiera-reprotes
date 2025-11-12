@@ -2,16 +2,29 @@ import streamlit as st
 import charts_resultados 
 from datetime import date
 
-def render(tab3_data):    
+def render(tab3_data): 
     """
     Renderiza el contenido de la pestaña "Resultados".
-    """    
+    Ahora maneja un diccionario con resultados por Zona y por Cobrador.
+    """ 
+    if tab3_data is None or not isinstance(tab3_data, dict):
+        st.warning("No se encontraron datos de resultados para los filtros globales seleccionados.")
+        return
+
+    df_resultados_zona = tab3_data.get("resultados_zona", None)
+    df_resultados_cobrador = tab3_data.get("resultados_cobrador", None)
+
+    if df_resultados_zona is None or df_resultados_zona.empty:
+        st.warning("No se encontraron datos de resultados de ZONA para los filtros globales seleccionados.")
+        # Continuar para revisar la tabla de Cobrador
+    
+    # --- FILTRO Y GRÁFICOS DE ZONAS (Lógica existente) ---
     st.header("Resultados de Cumplimiento por Zona y Franja")
-    # Usamos el dataframe pre-procesado
-    if tab3_data is not None and not tab3_data.empty:
+
+    if df_resultados_zona is not None and not df_resultados_zona.empty:
         
-        # 1. Filtro de zonas (sin cambios)
-        zonas_disponibles = sorted(tab3_data['Zona'].unique())
+        # 1. Filtro de zonas
+        zonas_disponibles = sorted(df_resultados_zona['Zona'].unique())
         with st.popover("Selecciona una o más Zonas...", use_container_width=False):
             if st.button("Seleccionar Todas", key="select_all_zonas"):
                 for zona in zonas_disponibles: st.session_state[f"zona_{zona}"] = True
@@ -27,8 +40,8 @@ def render(tab3_data):
         st.caption(f"{len(zonas_seleccionadas)} de {len(zonas_disponibles)} zonas seleccionadas.")
         st.markdown("---")
 
-        # 2. Filtramos el dataframe base (sin cambios)
-        df_tabla_base = tab3_data[tab3_data['Zona'].isin(zonas_seleccionadas)]
+        # 2. Filtramos el dataframe base
+        df_tabla_base = df_resultados_zona[df_resultados_zona['Zona'].isin(zonas_seleccionadas)]
 
         if df_tabla_base.empty:
             st.warning("Selecciona al menos una zona para ver los resultados.")
@@ -40,18 +53,16 @@ def render(tab3_data):
                 Recaudo_Meta_Total=('Recaudo_Meta_Total', 'sum')
             ).reset_index()
             datos_agregados_charts['Cumplimiento_%'] = (datos_agregados_charts['Recaudo_Total'] / datos_agregados_charts['Meta_Total']).fillna(0)
-            # Definimos las dos columnas principales: 2/3 para la cuadrícula, 1/3 para el total
+            
             col_izquierda, col_derecha = st.columns([2, 1])
 
             # --- Columna Izquierda: Cuadrícula de 2x2 para las franjas ---
             with col_izquierda:
                 franjas_a_mostrar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']
                 
-                # Creamos dos filas para la cuadrícula
                 fila1_cols = st.columns(2)
                 fila2_cols = st.columns(2)
                 
-                # Combinamos las columnas de ambas filas en una sola lista para iterar
                 grid_cols = fila1_cols + fila2_cols
 
                 for col, franja in zip(grid_cols, franjas_a_mostrar):
@@ -68,7 +79,7 @@ def render(tab3_data):
                             st.plotly_chart(fig_gauge, use_container_width=True)
                         else:
                             st.warning(f"Sin datos para franja {franja}.")
-        
+            
             # --- Columna Derecha: Gráfico grande para el total ---
             with col_derecha:
                 st.markdown("<div style='height: 150px;'></div>", unsafe_allow_html=True)
@@ -87,12 +98,13 @@ def render(tab3_data):
                 )
                 st.plotly_chart(fig_gauge_total, use_container_width=True)
             st.markdown("---")
-            # --- Sección de Tablas de Detalle ---
+            
+            # --- Sección de Tablas de Detalle por Zona ---
             st.header("Tabla de Detalle por Zona")
 
             expected_compliance, start_date, end_date = charts_resultados.calculate_expected_compliance()
             st.info(f"**Meta de cumplimiento para hoy ({date.today().strftime('%d/%m/%Y')}): {expected_compliance:.2%}** | "
-                    f"Periodo: {start_date.strftime('%d/%m')} al {end_date.strftime('%d/%m')}")
+                      f"Periodo: {start_date.strftime('%d/%m')} al {end_date.strftime('%d/%m')}")
             st.markdown("---")
 
             for franja in franjas_a_mostrar:
@@ -128,7 +140,6 @@ def render(tab3_data):
                 html_table = styled_df.to_html()
 
                 # 2. Usamos st.markdown para renderizar el HTML con los estilos
-                #    y mantenemos la lógica del scroll
                 if len(df_tabla_display) > 7:
                     st.markdown(
                         f'<div style="width: 100%; max-height: 350px; overflow-y: auto;">{html_table}</div>',
@@ -140,7 +151,6 @@ def render(tab3_data):
                 df_for_excel = df_tabla_display.copy()
             
                 # 2. Aplicamos el formato deseado a la columna 'Cumplimiento (%)'.
-                #    Multiplica por 100, formatea a 2 decimales, reemplaza '.' por ',' y añade '%'.
                 df_for_excel['Cumplimiento (%)'] = df_for_excel['Cumplimiento (%)'].apply(
                     lambda x: f"{x * 100:.2f}".replace('.', ',') + '%'
                 )
@@ -153,7 +163,7 @@ def render(tab3_data):
                 )
                 st.markdown("---")
 
-            # --- Sección de Métricas Totales ---
+            # --- Sección de Métricas Totales (Zona) ---
             st.subheader("Totales Generales de Zonas Seleccionadas")
             total_meta = df_tabla_base['Meta_Total'].sum()
             total_recaudo = df_tabla_base['Recaudo_Total'].sum()
@@ -163,6 +173,60 @@ def render(tab3_data):
             col2.metric("Recaudo Total", f"${total_recaudo:,.0f}")
             col3.metric("Faltante Total", f"${total_meta - total_recaudo:,.0f}")
             col4.metric("Cumplimiento Total", f"{(total_recaudo / total_meta) if total_meta > 0 else 0:.2%}")
+    
+    # --- NUEVA SECCIÓN: DETALLE POR COBRADOR ---
+    st.markdown("---")
+    st.header("Resultados de Cumplimiento por Cobrador")
+
+    if df_resultados_cobrador is not None and not df_resultados_cobrador.empty:
+        df_cobrador_display = df_resultados_cobrador.rename(columns={
+            'Franja_Meta': 'Franja', 'Meta_Total': 'Meta ($)', 'Recaudo_Total': 'Recaudo ($)',
+            'Cumplimiento_%': 'Cumplimiento (%)', 'Regional_Cobro': 'Regional Cobro'
+        })
+        
+        # MODIFICACIÓN CLAVE: Incluir 'Faltante ($)' en el orden de columnas
+        df_cobrador_display['Faltante ($)'] = df_cobrador_display['Meta ($)'] - df_cobrador_display['Recaudo ($)']
+        column_order_cobrador = ['Regional Cobro', 'Cobrador', 'Franja', 'Meta ($)', 'Recaudo ($)', 'Faltante ($)', 'Cumplimiento (%)']
+        
+        df_cobrador_display = df_cobrador_display[[col for col in column_order_cobrador if col in df_cobrador_display.columns]]
+
+        # 1. Volvemos a generar el objeto de estilo y lo convertimos a HTML
+        expected_compliance, _, _ = charts_resultados.calculate_expected_compliance()
+        styled_df_cobrador = df_cobrador_display.style.map(
+            lambda x: charts_resultados.style_cumplimiento_bar(x, expected_compliance),
+            subset=['Cumplimiento (%)']
+        ).format({
+            'Meta ($)': '${:,.0f}', 'Recaudo ($)': '${:,.0f}',
+            'Faltante ($)': '${:,.0f}', 'Cumplimiento (%)': '{:.2%}'
+        }).hide(axis="index").set_table_attributes('width="100%"').set_table_styles([
+            {'selector': 'th, td', 'props': [('padding', '4px 10px'), ('text-align', 'center')]}
+        ])
+        
+        html_table_cobrador = styled_df_cobrador.to_html()
+
+        st.info("Tabla con el detalle de recaudo y meta por cada Cobrador y Franja de Mora.")
+
+        # Usamos st.markdown para renderizar el HTML con scroll si es necesario
+        if len(df_cobrador_display) > 10:
+            st.markdown(
+                f'<div style="width: 100%; max-height: 450px; overflow-y: auto;">{html_table_cobrador}</div>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(html_table_cobrador, unsafe_allow_html=True)
+            
+        # Preparar para descarga
+        df_for_excel_cobrador = df_cobrador_display.copy()
+        df_for_excel_cobrador['Cumplimiento (%)'] = df_for_excel_cobrador['Cumplimiento (%)'].apply(
+            lambda x: f"{x * 100:.2f}".replace('.', ',') + '%'
+        )
+
+        charts_resultados.generate_excel_download_link(
+            df=df_for_excel_cobrador,
+            filename="detalle_cumplimiento_cobradores.xlsx",
+            button_label="📥 Descargar Detalle de Cobradores"
+        )
+        st.markdown("---")
 
     else:
-        st.warning("No se encontraron datos de resultados para los filtros globales seleccionados.")
+        st.info("No se encontraron datos de cumplimiento por Cobrador con los filtros seleccionados.")

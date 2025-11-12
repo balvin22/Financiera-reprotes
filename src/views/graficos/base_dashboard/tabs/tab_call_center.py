@@ -19,17 +19,23 @@ except ImportError:
         IMPORT_SUCCESS = False
 
 
-def render(tab6_data, charts_resultados):
+# MODIFICACIÓN: Añadir 'alerts' como tercer argumento
+def render(tab6_data, charts_resultados, alerts):
     """
     Renderiza el contenido del Tab 6: Call Centers.
-    La tabla de detalle solo muestra créditos asociados a Call Centers.
-    Al final se añaden tabs con análisis adicionales.
+    Ahora recibe un diccionario de alertas para mostrar dentro de los sub-tabs.
     """
-    st.header("Rendimiento de Call Centers")
-    if not tab6_data or not any(key in tab6_data for key in ["reporte_raw", "rodamiento_data", "cartera_detallada_call_center"]):
-        st.warning("No hay datos de Call Center para mostrar con los filtros seleccionados.")
-        return
-
+    
+    # --- EXTRAER ALERTA DE NEGOCIO DEL DICCIONARIO DE DATOS (si fue generada por el servicio) ---
+    # Si prepare_tab6_data encontró una alerta de negocio, la pasará aquí.
+    novedades_alert = tab6_data.pop("novedades_alert", None)
+    
+    # Si encontramos una alerta de negocio en la data, la movemos a alerts
+    if novedades_alert:
+        alerts['novedades_error'] = novedades_alert
+        
+    # Asignación de datos (usando .get para seguridad)
+    # ----------------------------------------------------------------------------------
     df_raw = tab6_data.get("reporte_raw", pd.DataFrame())
     df_rodamiento_count = tab6_data.get("rodamiento_data", pd.DataFrame())
     df_cartera_detalle = tab6_data.get("cartera_detallada_call_center", pd.DataFrame())
@@ -42,7 +48,15 @@ def render(tab6_data, charts_resultados):
     alerta_umbral = tab6_data.get("alerta_umbral", 0)
     df_funnel_mensajeria = tab6_data.get("df_funnel_mensajeria", pd.DataFrame())
     df_efectividad_mensajeria = tab6_data.get("df_efectividad_mensajeria", pd.DataFrame())
+    # ----------------------------------------------------------------------------------
+
+    # --- RENDERIZADO PRINCIPAL DEL TAB 6 ---
+    st.header("Rendimiento de Call Centers")
     
+    # La alerta general (si no hay datos de Call Center) se mantiene aquí:
+    if not tab6_data or not any(key in tab6_data for key in ["reporte_raw", "rodamiento_data", "cartera_detallada_call_center"]):
+        st.warning("No hay datos de Call Center para mostrar con los filtros seleccionados.")
+        return
 
     col1, col2 = st.columns(2)
     with col1:
@@ -67,7 +81,7 @@ def render(tab6_data, charts_resultados):
         st.subheader("Metas por Call Center")
         expected_compliance, start_date, end_date = charts_resultados.calculate_expected_compliance()
         st.info(f"**Meta de cumplimiento para hoy ({date.today().strftime('%d/%m/%Y')}): {expected_compliance:.2%}** | "
-                f"Periodo: {start_date.strftime('%d/%m')} al {end_date.strftime('%d/%m')}")
+                 f"Periodo: {start_date.strftime('%d/%m')} al {end_date.strftime('%d/%m')}")
         st.markdown("---")
         
         html_table = charts_call_center.create_styled_summary_table(
@@ -114,8 +128,8 @@ def render(tab6_data, charts_resultados):
                 for opt in rodamiento_options:
                     if f"rod_det_{opt}" not in st.session_state: st.session_state[f"rod_det_{opt}"] = True
                     st.checkbox(opt, key=f"rod_det_{opt}")
-            selected_rodamientos = [opt for opt in rodamiento_options if st.session_state.get(f"rod_det_{opt}", True)]
-            st.caption(f"{len(selected_rodamientos)} de {len(rodamiento_options)} seleccionados.")
+                selected_rodamientos = [opt for opt in rodamiento_options if st.session_state.get(f"rod_det_{opt}", True)]
+                st.caption(f"{len(selected_rodamientos)} de {len(rodamiento_options)} seleccionados.")
 
         with col_f2:
             st.write("Filtrar por gestión:")
@@ -128,8 +142,8 @@ def render(tab6_data, charts_resultados):
                 for opt in gestion_options:
                     if f"gestion_det_{opt}" not in st.session_state: st.session_state[f"gestion_det_{opt}"] = True
                     st.checkbox(opt, key=f"gestion_det_{opt}")
-            selected_gestiones = [opt for opt in gestion_options if st.session_state.get(f"gestion_det_{opt}", True)]
-            st.caption(f"{len(selected_gestiones)} de {len(gestion_options)} seleccionados.")
+                selected_gestiones = [opt for opt in gestion_options if st.session_state.get(f"gestion_det_{opt}", True)]
+                st.caption(f"{len(selected_gestiones)} de {len(gestion_options)} seleccionados.")
 
         with col_f3:
             st.write("Filtrar por pago:")
@@ -142,8 +156,8 @@ def render(tab6_data, charts_resultados):
                 for opt in pago_options:
                     if f"pago_det_{opt}" not in st.session_state: st.session_state[f"pago_det_{opt}"] = True
                     st.checkbox(opt, key=f"pago_det_{opt}")
-            selected_pagos = [opt for opt in pago_options if st.session_state.get(f"pago_det_{opt}", True)]
-            st.caption(f"{len(selected_pagos)} de {len(pago_options)} seleccionados.")
+                selected_pagos = [opt for opt in pago_options if st.session_state.get(f"pago_det_{opt}", True)]
+                st.caption(f"{len(selected_pagos)} de {len(pago_options)} seleccionados.")
 
         with col_f4:
             st.write("Filtrar por novedad:")
@@ -156,8 +170,8 @@ def render(tab6_data, charts_resultados):
                 for opt in novedad_options:
                     if f"novedad_det_{opt}" not in st.session_state: st.session_state[f"novedad_det_{opt}"] = True
                     st.checkbox(opt, key=f"novedad_det_{opt}")
-            selected_novedades = [opt for opt in novedad_options if st.session_state.get(f"novedad_det_{opt}", True)]
-            st.caption(f"{len(selected_novedades)} de {len(novedad_options)} seleccionados.")
+                selected_novedades = [opt for opt in novedad_options if st.session_state.get(f"novedad_det_{opt}", True)]
+                st.caption(f"{len(selected_novedades)} de {len(novedad_options)} seleccionados.")
         
         # Aplicar filtros al DataFrame de detalle
         df_tabla = df_cartera_detalle.copy()
@@ -206,6 +220,9 @@ def render(tab6_data, charts_resultados):
             "💬 Mensajería Call Center",
             "📋 Novedades del Sistema"
         ])
+        
+        # --- MOSTRAR ALERTAS EN SUS SUB-TABS RESPECTIVOS ---
+        
         with tab_llamadas:
             subtab_llamadas.render(
                 llamadas_stats=llamadas_stats,
@@ -213,18 +230,29 @@ def render(tab6_data, charts_resultados):
                 df_llamadas_filtradas=df_llamadas_filtradas,
                 df_efectividad_call=df_efectividad_call,
                 df_llamadas_por_dia=df_llamadas_por_dia,
-                alerta_umbral=alerta_umbral,     
+                alerta_umbral=alerta_umbral, 
+                
             )
 
             
         with tab_mensajeria:
+            # Mostrar error de carga de Mensajería
+            if alerts.get('mensajeria_error'):
+                st.warning(alerts['mensajeria_error'])
+                
             subtab_mensajeria.render(
                 df_mensajeria=df_mensajeria_filtrada,
                 df_cartera_detalle=df_cartera_detalle,
                 df_funnel_mensajeria=df_funnel_mensajeria,
                 df_efectividad_mensajeria=df_efectividad_mensajeria
             )
+            
         with tab_novedades:
-            subtab_novedades_sistema    
+            # Mostrar la alerta de negocio de Novedades del Sistema, si existe.
+            novedades_error = alerts.get('novedades_error')
+            if novedades_error:
+                st.info(novedades_error)
+            
+            subtab_novedades_sistema     
     else:
         st.error("No se pudieron cargar los módulos de análisis adicional (sub-tabs).")

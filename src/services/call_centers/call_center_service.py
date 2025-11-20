@@ -84,30 +84,42 @@ def _process_cartera_and_report(df_cartera: pd.DataFrame, df_novedades: pd.DataF
     df_detalle_call_centers = _merge_cartera_with_novedades(df_detalle_call_centers, df_novedades)
 
     # 2. Generar Reporte Raw (agregaciones)
+    # --- GRUPO 1: CL1 - CL4 (Filtrados por Franja 'AL DIA') ---
     df_cl1_4 = df[(df['Zona'].isin(CALL_CENTERS_ZONA)) & (df['Franja_Meta'] == 'AL DIA')]
-    agg_cl1_4 = pd.DataFrame(columns=['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta'])
+    agg_cl1_4 = pd.DataFrame(columns=['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta', 'Franja']) # Añadido Franja
+    
     if not df_cl1_4.empty:
         agg_cl1_4 = df_cl1_4.groupby(['Zona', 'Cobrador']).agg(
             Meta_General=('Meta_General', 'sum'),
             Recaudo_Meta=('Recaudo_Meta', 'sum')
         ).reset_index()
         agg_cl1_4.rename(columns={'Zona': 'CALL_CENTER', 'Cobrador': 'NOMBRE', 'Meta_General': 'META_$'}, inplace=True)
+        # Como filtramos por 'AL DIA', asignamos ese valor explícitamente
+        agg_cl1_4['Franja'] = 'AL DIA'
 
+    # --- GRUPO 2: CL5 - CL9 (Apoyo) ---
     df_cl5_9 = df[df['Call_Center_Apoyo'].isin(CALL_CENTERS_APOYO)]
-    agg_cl5_9 = pd.DataFrame(columns=['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta'])
+    agg_cl5_9 = pd.DataFrame(columns=['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta', 'Franja']) # Añadido Franja
+    
     if not df_cl5_9.empty:
+        # Agregamos Franja al agg. Usamos 'first' para tomar la franja principal del call center
         agg_cl5_9 = df_cl5_9.groupby(['Call_Center_Apoyo', 'Nombre_Call_Center']).agg(
             Meta_Dollar=('Meta_$', 'sum'),
-            Recaudo_Meta=('Recaudo_Meta', 'sum')
+            Recaudo_Meta=('Recaudo_Meta', 'sum'),
+            Franja=('Franja_Meta', 'first') # <-- NUEVO: Obtener la franja
         ).reset_index()
         agg_cl5_9.rename(columns={'Call_Center_Apoyo': 'CALL_CENTER', 'Nombre_Call_Center': 'NOMBRE', 'Meta_Dollar': 'META_$'}, inplace=True)
 
     df_reporte = pd.concat([agg_cl1_4, agg_cl5_9], ignore_index=True)
     reporte_raw = pd.DataFrame()
+    
     if not df_reporte.empty:
         df_reporte['Faltante'] = df_reporte['META_$'] - df_reporte['Recaudo_Meta']
         df_reporte['Cumplimiento'] = np.where(df_reporte['META_$'] > 0, df_reporte['Recaudo_Meta'] / df_reporte['META_$'], 0)
-        columnas_finales_raw = ['CALL_CENTER', 'NOMBRE', 'META_$', 'Recaudo_Meta', 'Faltante', 'Cumplimiento']
+        
+        # AÑADIMOS 'Franja' A LA LISTA DE COLUMNAS FINALES
+        columnas_finales_raw = ['CALL_CENTER', 'NOMBRE', 'Franja', 'META_$', 'Recaudo_Meta', 'Faltante', 'Cumplimiento']
+        
         reporte_raw = df_reporte[columnas_finales_raw].sort_values(by='CALL_CENTER').reset_index(drop=True)
 
     # 3. Datos de Rodamiento
@@ -119,7 +131,7 @@ def _process_cartera_and_report(df_cartera: pd.DataFrame, df_novedades: pd.DataF
         "reporte_raw": reporte_raw,
         "rodamiento_data": agg_rodamiento,
         "cartera_detallada_call_center": df_detalle_call_centers,
-        "df_cartera_procesada": df # Devolver el DF limpio para el funnel
+        "df_cartera_procesada": df 
     }
 
 # --- 3. Funciones Ayudantes: Procesamiento de Novedades por Call Center ---

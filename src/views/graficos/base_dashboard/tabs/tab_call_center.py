@@ -200,6 +200,7 @@ def render(tab6_data, charts_resultados, alerts):
                 "df_detalle": tab6_data.get("df_detalle", tab6_data.get("df_novedades_mapeadas", pd.DataFrame())),
                 "df_agg_call": tab6_data.get("df_agg_call", tab6_data.get("df_agg_novedades_por_call", pd.DataFrame())),
                 "df_agg_tipo": tab6_data.get("df_agg_tipo", tab6_data.get("df_agg_novedades_por_tipo", pd.DataFrame())),
+                "df_compromisos": tab6_data.get("df_compromisos", pd.DataFrame()),
                 "kpis": tab6_data.get("kpis", {"total": 0, "sin_asignar": 0, "top_tipo": "N/A"}),
                 "error": novedades_error,
                 "df_cartera_call": df_cartera_detalle

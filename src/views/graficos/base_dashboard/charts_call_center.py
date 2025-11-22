@@ -648,47 +648,42 @@ def create_tipo_novedad_donut_chart(df_cartera):
 
 def create_compromisos_stacked_bar_chart(df_compromisos):
     """
-    Crea un gráfico de barras apiladas horizontales para Acuerdos Vigentes vs Vencidos.
-    Replica el estilo visual de la imagen de referencia.
+    Gráfico de barras apiladas con 3 categorías: Vigentes, Vencidos y Sin Fecha.
     """
     if df_compromisos.empty:
         return None
     
-    # 1. Definir Colores Específicos
+    # 1. Definir Colores (3 Categorías)
     color_map = {
-        'ACUERDOS VIGENTES': '#0B5375',  # Azul petróleo oscuro (similar a la imagen)
-        'ACUERDOS VENCIDOS': '#85929E',  # Gris azulado (similar a la imagen)
+        'ACUERDOS VIGENTES': '#0B5375',   # Azul Oscuro
+        'ACUERDOS VENCIDOS': '#85929E',   # Gris Azulado
+        'ACUERDOS SIN FECHA': '#E59866'   # Naranja Suave (Alerta visual pero no agresiva)
     }
     
-    # 2. Crear el gráfico
+    # 2. Crear Gráfico
     fig = px.bar(
         df_compromisos,
         x="Cantidad",
         y="Call_Center_Asignado",
         color="Estado_Acuerdo",
-        orientation='h',     # Barras horizontales
-        text="Cantidad",     # Mostrar el número dentro de la barra
+        orientation='h',
+        text="Cantidad",
         color_discrete_map=color_map,
-        # Forzar orden: Vigentes primero (azul), luego Vencidos (gris)
-        category_orders={"Estado_Acuerdo": ["ACUERDOS VIGENTES", "ACUERDOS VENCIDOS"]}
+        # Orden Lógico: Vigentes primero, luego Vencidos, luego los Errores
+        category_orders={"Estado_Acuerdo": ["ACUERDOS VIGENTES", "ACUERDOS VENCIDOS", "ACUERDOS SIN FECHA"]}
     )
     
-    # 3. Ajustes de Diseño
+    # 3. Diseño
     fig.update_layout(
         title_text="Estado de Compromisos de Pago",
-        title_x=0,           # Título alineado a la izquierda
-        xaxis_title=None,    # Sin título en eje X
-        yaxis_title=None,    # Sin título en eje Y
-        legend_title_text=None, # Sin título en la leyenda
-        
-        # Fondo transparente
+        title_x=0,
+        xaxis_title=None,
+        yaxis_title=None,
+        legend_title_text=None,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
-        
         margin=dict(l=20, r=20, t=40, b=20),
-        height=400, # Altura adecuada para ver las barras
-        
-        # Leyenda Horizontal arriba a la derecha
+        height=400,
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -698,7 +693,6 @@ def create_compromisos_stacked_bar_chart(df_compromisos):
         )
     )
     
-    # 4. Estilo del texto dentro de las barras
     fig.update_traces(
         textposition='inside',
         textfont=dict(color='white', size=12)

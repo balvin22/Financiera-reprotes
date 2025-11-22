@@ -4,9 +4,10 @@ import numpy as np
 import streamlit as st
 import unicodedata 
 
-# --- [NUEVO] Importar los módulos de lógica específicos ---
 from .sub_llamadas_service import process_llamadas
 from .sub_mensajeria_service import process_mensajeria_funnel
+from .sub_novedades_service import process_novedades_system
+
 
 # --- Constantes de Configuración ---
 CALL_CENTERS_ZONA = ['CL1', 'CL2', 'CL3', 'CL4']
@@ -238,11 +239,9 @@ def _process_novedades_por_call(df_novedades: pd.DataFrame, df_llamadas: pd.Data
 
 
 # --- FUNCIÓN PRINCIPAL (PÚBLICA) ---
-
 def prepare_tab6_data(df_cartera_filtrada: pd.DataFrame, df_novedades_filtrada: pd.DataFrame, df_llamadas_filtrada: pd.DataFrame, df_mensajeria_filtrada: pd.DataFrame) -> dict: 
     """
     Prepara los datos para el reporte de Call Centers en el Tab 6.
-    Esta función coordina a funciones ayudantes para procesar cada sección.
     """
     
     # --- 0. Validación de Entrada ---
@@ -256,12 +255,11 @@ def prepare_tab6_data(df_cartera_filtrada: pd.DataFrame, df_novedades_filtrada: 
         df_novedades_filtrada
     )
     
-    # --- 2. Procesar Llamadas (Llama al módulo importado) ---
+    # --- 2. Procesar Llamadas ---
     llamadas_data = process_llamadas(df_llamadas_filtrada.copy())
     
-    # --- 3. Procesar Mensajería y Funnel (Llama al módulo importado) ---
+    # --- 3. Procesar Mensajería ---
     df_cartera_procesada = cartera_data["df_cartera_procesada"]
-    
     mensajeria_data = process_mensajeria_funnel(
         df_mensajeria_filtrada.copy(), 
         df_novedades_filtrada, 
@@ -269,24 +267,26 @@ def prepare_tab6_data(df_cartera_filtrada: pd.DataFrame, df_novedades_filtrada: 
     )
     
     # --- 4. Procesar Novedades del Sistema por Call Center ---
-    novedades_sistema_data = _process_novedades_por_call(
+    # [CORRECCIÓN 2] USAR LA NUEVA FUNCIÓN IMPORTADA QUE CALCULA COMPROMISOS
+    # Antes estabas llamando a _process_novedades_por_call (la antigua interna)
+    
+    novedades_sistema_data = process_novedades_system(
         df_novedades_filtrada.copy(),
         df_llamadas_filtrada.copy() 
     )
 
     # --- 5. Ensamblar el diccionario final ---
+    # Al hacer **novedades_sistema_data aquí, se inyecta 'df_compromisos' en el diccionario final
     final_data = {
         **cartera_data,
         **llamadas_data,
         **mensajeria_data,
-        **novedades_sistema_data,
+        **novedades_sistema_data, 
         
-        # Pasar los DFs originales filtrados (que las sub-tabs esperan)
         "df_llamadas_filtrada": df_llamadas_filtrada,
         "df_mensajeria_filtrada": df_mensajeria_filtrada, 
     }
     
-    # Limpiar: remover la cartera procesada temporal que no se retorna
     if "df_cartera_procesada" in final_data:
         del final_data["df_cartera_procesada"]
     

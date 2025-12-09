@@ -220,31 +220,32 @@ def prepare_tab3_data(df):
     
     # --- 3. NUEVA Agregación por Cobrador ---
     # Usamos las mismas métricas
-    group_by_cols_cobrador = ['Cobrador', 'Franja_Meta']
+    group_by_cols_cobrador = ['Zona', 'Cobrador'] 
+    
     if 'Regional_Cobro' in df_para_grupo.columns:
          group_by_cols_cobrador.insert(0, 'Regional_Cobro')
     
-    # Eliminamos las filas donde el cobrador es nulo o vacío
+    # Eliminamos filas con cobrador vacío
     df_cobrador = df_para_grupo[df_para_grupo['Cobrador'].notna() & (df_para_grupo['Cobrador'] != '')].copy()
 
+    # 2. CAMBIO DE MÉTRICAS: 
+    # Meta_Total ahora usa 'Meta_T.R_$'
+    # Recaudo_Total ahora usa 'Total_Recaudo_Sin_Anti'
     resultados_cobrador = df_cobrador.groupby(group_by_cols_cobrador).agg(
-        Meta_Total=('Meta_$', 'sum'),
-        Recaudo_Total=('Recaudo_Meta', 'sum'), 
-        Recaudo_Sin_Anti_Total=('Total_Recaudo_Sin_Anti', 'sum'),
-        Recaudo_Meta_Total=('Meta_T.R_$', 'sum')
+        Meta_Total=('Meta_T.R_$', 'sum'),             # <-- CAMBIO AQUÍ
+        Recaudo_Total=('Total_Recaudo_Sin_Anti', 'sum') # <-- CAMBIO AQUÍ
     ).reset_index()
     
+    # Cálculo del porcentaje de cumplimiento
     resultados_cobrador['Cumplimiento_%'] = 0.0
     mask_meta_valida_cobrador = resultados_cobrador['Meta_Total'] > 0
     resultados_cobrador.loc[mask_meta_valida_cobrador, 'Cumplimiento_%'] = (
         resultados_cobrador.loc[mask_meta_valida_cobrador, 'Recaudo_Total'] / resultados_cobrador.loc[mask_meta_valida_cobrador, 'Meta_Total']
     )
 
-
-    # Devolver un diccionario con ambos DataFrames
     return {
         "resultados_zona": resultados_zona, 
-        "resultados_cobrador": resultados_cobrador # <-- NUEVO DATAFRAME
+        "resultados_cobrador": resultados_cobrador
     }
 
 @st.cache_data

@@ -179,16 +179,35 @@ def render(tab3_data):
     st.header("Resultados de Cumplimiento por Cobrador")
 
     if df_resultados_cobrador is not None and not df_resultados_cobrador.empty:
+        
         df_cobrador_display = df_resultados_cobrador.rename(columns={
-            'Franja_Meta': 'Franja', 'Meta_Total': 'Meta ($)', 'Recaudo_Total': 'Recaudo ($)',
-            'Cumplimiento_%': 'Cumplimiento (%)', 'Regional_Cobro': 'Regional Cobro'
+            'Meta_Total': 'Meta ($)', 
+            'Recaudo_Total': 'Recaudo ($)',
+            'Cumplimiento_%': 'Cumplimiento (%)', 
+            'Regional_Cobro': 'Regional Cobro'
         })
         
-        # MODIFICACIÓN CLAVE: Incluir 'Faltante ($)' en el orden de columnas
+        # Calculamos el faltante con las nuevas métricas
         df_cobrador_display['Faltante ($)'] = df_cobrador_display['Meta ($)'] - df_cobrador_display['Recaudo ($)']
-        column_order_cobrador = ['Regional Cobro', 'Cobrador', 'Franja', 'Meta ($)', 'Recaudo ($)', 'Faltante ($)', 'Cumplimiento (%)']
+        
+        # 3. AGREGAMOS 'Zona' AL ORDEN DE COLUMNAS
+        column_order_cobrador = [
+            'Regional Cobro', 
+            'Zona',              # <-- AÑADIDO AQUÍ
+            'Cobrador', 
+            'Meta ($)', 
+            'Recaudo ($)', 
+            'Faltante ($)', 
+            'Cumplimiento (%)'
+        ]
         
         df_cobrador_display = df_cobrador_display[[col for col in column_order_cobrador if col in df_cobrador_display.columns]]
+
+        # Ordenar (opcional: Primero por Zona, luego por Cumplimiento)
+        if 'Zona' in df_cobrador_display.columns:
+             df_cobrador_display = df_cobrador_display.sort_values(by=['Zona', 'Cumplimiento (%)'], ascending=[True, False])
+        else:
+             df_cobrador_display = df_cobrador_display.sort_values(by='Cumplimiento (%)', ascending=False)
 
         # 1. Volvemos a generar el objeto de estilo y lo convertimos a HTML
         expected_compliance, _, _ = charts_resultados.calculate_expected_compliance()

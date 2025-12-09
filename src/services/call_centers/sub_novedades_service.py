@@ -108,8 +108,6 @@ def process_novedades_system(df_novedades: pd.DataFrame, df_llamadas: pd.DataFra
         else:
             df_compromisos = pd.DataFrame()
 
-        # ==============================================================================
-
         df_agg_call = df_proc[df_proc['Call_Center_Asignado'] != 'SIN ASIGNAR'].groupby('Call_Center_Asignado').size().reset_index(name='Cantidad')
         df_agg_tipo = df_proc[df_proc['Call_Center_Asignado'] != 'SIN ASIGNAR'].groupby(['Call_Center_Asignado', col_tipo]).size().reset_index(name='Cantidad')
 

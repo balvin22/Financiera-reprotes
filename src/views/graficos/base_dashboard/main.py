@@ -6,6 +6,7 @@ import ui_components
 from tabs import tab_metricas, tab_seguimientos, tab_resultados, tab_datos_detallados, tab_comercial,tab_call_center
 import src.views.graficos.base_dashboard.charts_resultados as chart_resultados
 import data_processing
+from src.services.comercial.comercial_service import prepare_tab5_data
 from src.services.call_centers.call_center_service import prepare_tab6_data
 import filtering
 
@@ -22,7 +23,7 @@ def main():
         return
     
     # MODIFICACIÓN 1: Ahora load_and_process_data devuelve 5 valores, incluido 'alerts'
-    df_cartera, df_novedades, df_llamadas, df_mensajeria, alerts = data_loader.load_and_process_data(uploaded_file) 
+    df_cartera, df_novedades, df_llamadas, df_mensajeria,df_fnz, alerts = data_loader.load_and_process_data(uploaded_file) 
     
     if df_cartera is None:
         # Si df_cartera es None, el error crítico se muestra en data_loader.
@@ -39,9 +40,12 @@ def main():
     tab4_data = data_processing.prepare_tab4_data(df_cartera_filtrada, df_novedades_filtrada)
     tab5_data = data_processing.prepare_tab5_data(df_cartera_filtrada)
     
+    tab5_data = prepare_tab5_data(
+        df_cartera_filtrada)
+    
     tab6_data = prepare_tab6_data(
         df_cartera_filtrada, 
-        df_novedades_filtrada,
+        df_novedades_filtrada,                                                                                                                                           
         df_llamadas_filtrada,
         df_mensajeria_filtrada
     )

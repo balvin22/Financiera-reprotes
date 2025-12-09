@@ -3,19 +3,20 @@ import streamlit as st
 import pandas as pd
 
 @st.cache_data(ttl=3600, show_spinner=False)
+
 def load_and_process_data(uploaded_file):
     """
     Carga y procesa eficientemente los datos desde un archivo Excel.
     
-    Las hojas 'Reporte_Llamadas' y 'Reporte_Mensajes' son opcionales.
+    Las hojas 'Reporte_Llamadas', 'Reporte_Mensajes' y 'FNZ007' son opcionales.
     Las alertas de carga ahora se recolectan y se devuelven en un diccionario.
     La alerta de negocio de "Novedades del Sistema" ha sido eliminada.
 
     Retorna:
-        (df_cartera, df_novedades, df_llamadas, df_mensajeria, alerts)
+        (df_cartera, df_novedades, df_llamadas, df_mensajeria, df_fnz, alerts)
     """
     
-    cols_cartera = [
+    cols_cartera = [                                                                                                                                       
         "Fecha_Desembolso", "Fecha_Ultima_Novedad", "Empresa", "Regional_Venta",
         "Nombre_Ciudad", "Nombre_Vendedor", "Franja_Meta", "Rodamiento", "Gestor",
         "Regional_Cobro", "Zona_Cobro", "Zona",
@@ -50,17 +51,20 @@ def load_and_process_data(uploaded_file):
         "Respuesta_Saliente", "Flujo_Truora", "Primer_Mensaje_Agente", "Fecha_Llamada", "Call_Center", "Nombre_Call"
     ]
 
+    # Inicialización de DataFrames opcionales
     df_llamadas = pd.DataFrame()
     df_mensajeria = pd.DataFrame()
+    df_fnz = pd.DataFrame() 
+    
     df_cartera = None
     df_novedades = None
     
     # INICIALIZACIÓN: Diccionario para recolectar alertas.
-    # ELIMINAMOS la alerta de 'novedades_error' para que no se muestre por defecto.
     alerts = {
         'llamadas_error': None,
         'mensajeria_error': None,
-        'novedades_error': None # Ahora es None por defecto
+        'fnz_error': None,  
+        'novedades_error': None 
     }
 
     try: 
@@ -90,8 +94,8 @@ def load_and_process_data(uploaded_file):
                 df_novedades[col] = pd.to_datetime(df_novedades[col], errors="coerce").dt.date
 
         str_cols = ["Empresa", "Regional_Venta", "Nombre_Ciudad", "Nombre_Vendedor", 
-                     "Franja_Meta", "Rodamiento", "Gestor", "Regional_Cobro", 
-                     "Zona_Cobro", "Zona"]
+                    "Franja_Meta", "Rodamiento", "Gestor", "Regional_Cobro", 
+                    "Zona_Cobro", "Zona"]
         for col in str_cols:
             if col in df_cartera.columns:
                 df_cartera[col] = df_cartera[col].astype(str).str.strip()
@@ -105,7 +109,7 @@ def load_and_process_data(uploaded_file):
         if 'Cedula_Cliente' in df_novedades.columns:
             df_novedades['Cedula_Cliente'] = df_novedades['Cedula_Cliente'].astype(str).str.strip()
             
-        # 1. Cargar Reporte_Llamadas
+        # 1. Cargar Reporte_Llamadas (Opcional)
         try:
             df_llamadas = pd.read_excel(
                 uploaded_file,
@@ -113,7 +117,6 @@ def load_and_process_data(uploaded_file):
                 engine='openpyxl',
                 usecols=cols_llamadas
             )
-            # Limpieza básica de llamadas
             if "Fecha_Llamada" in df_llamadas.columns:
                 df_llamadas["Fecha_Llamada"] = pd.to_datetime(df_llamadas["Fecha_Llamada"], errors="coerce")
             
@@ -126,10 +129,9 @@ def load_and_process_data(uploaded_file):
                     df_llamadas[col] = df_llamadas[col].astype(str).str.strip()
 
         except Exception as e:
-            # Recolectar la alerta en lugar de mostrarla
             alerts['llamadas_error'] = f"Nota: No se pudo cargar la hoja 'Reporte_Llamadas'. Causa: {e}"
 
-        # 2. Cargar Reporte_Mensajes
+        # 2. Cargar Reporte_Mensajes (Opcional)
         try:
             df_mensajeria = pd.read_excel(
                 uploaded_file,
@@ -137,8 +139,7 @@ def load_and_process_data(uploaded_file):
                 engine='openpyxl',
                 usecols=cols_mensajeria
             )
-            # Limpieza básica de mensajería
-            if "Fecha_Llamada" in df_mensajeria.columns: # Basado en tu lista de columnas
+            if "Fecha_Llamada" in df_mensajeria.columns: 
                 df_mensajeria["Fecha_Llamada"] = pd.to_datetime(
                     df_mensajeria["Fecha_Llamada"], errors="coerce", dayfirst=True
                 ).dt.date
@@ -152,16 +153,55 @@ def load_and_process_data(uploaded_file):
                 if col in df_mensajeria.columns:
                     df_mensajeria[col] = df_mensajeria[col].astype(str).str.strip()
         except Exception as e:
-            # Recolectar la alerta en lugar de mostrarla
             alerts['mensajeria_error'] = f"Nota: No se pudo cargar la hoja 'Reporte_Mensajes'. Causa: {e}"
+
+        # 3. Cargar FNZ007
+        try:
+            #Mapeando las columnas conocidas de FNZ007
+            mapa_columnas_fnz = {
+                'ESTADO':'Estado',
+                'ANALISTA':'Analista_Asociado',
+                'FECHA':'Fecha',
+                'DESEMBOLSO':'Credito_Desembolsado',
+                'CEDULA':'Cedula_Cliente',
+                'FS1NACFEC':'Fecha_Nacimiento',
+                'APELLIDOS':'Apellidos',
+                'NOMBRES':'Nombres',
+                'TELEFONO1':'Celular1',
+                'MOVIL':'Celular2',
+                'FS1EMAIL':'Correo',
+                'CARGO':'Cargo',
+                'DIRECCION':'Direccion',
+                'CODCIUDAD':'Codigo_Ciudad',
+                'CIUDAD':'Ciudad',
+                'BARRIO':'Barrio',
+                'VENNOMBRE':'Nombre_Vendedor',
+                'CCONOMBRE':'Centro_Costo',
+                'CUOTAS':'Total_Cuotas',
+                'FS0NOTA':'Nota',
+                'VALOR_TOTA':'Valor_Total',
+                'INGRESOS':'Ingresos',
+                'GASTOS':'Gastos'
+            }
             
-        # Lógica de la alerta de negocio de Novedades del Sistema ha sido ELIMINADA
-        # No se inicializa ni se sobreescribe, por lo que queda como None y no se muestra.
-            
-        # Devolver el diccionario de alertas como quinto valor
-        return df_cartera, df_novedades, df_llamadas, df_mensajeria, alerts
+            cols_a_cargar = list(mapa_columnas_fnz.keys())
+            # No definimos 'usecols' para que traiga todas las columnas disponibles en FNZ007
+            df_fnz = pd.read_excel(
+                uploaded_file,
+                sheet_name="FNZ007",
+                engine='openpyxl',
+                usecols=cols_a_cargar
+            )
+            df_fnz.rename(columns=mapa_columnas_fnz, inplace=True) 
+            if "Fecha_Nacimiento" in df_fnz.columns:
+                 df_fnz["Fecha_Nacimiento"] = pd.to_datetime(df_fnz["Fecha_Nacimiento"]).dt.date
+                            
+        except Exception as e:
+            # Si falla, simplemente se registra (opcional) y df_fnz sigue vacía
+            alerts['fnz_error'] = f"Nota: No se pudo cargar la hoja 'FNZ007'. Causa: {e}"
+
+        return df_cartera, df_novedades, df_llamadas, df_mensajeria, df_fnz, alerts
 
     except Exception as e:
-        # Alerta crítica: las hojas principales (Cartera o Novedades) no se cargaron.
         st.error(f"Error crítico al leer las hojas principales (Cartera o Novedades). Asegúrate de que existan. Error: {e}")
-        return None, None, None, None, alerts
+        return None, None, None, None, None, alerts

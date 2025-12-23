@@ -61,8 +61,6 @@ def sidebar_filters(df):
             default=sorted(df["Franja_Cartera"].unique())
         )
     
-
-    # ... Añade aquí los demás multiselect para Regional, Gestor, Rodamiento ...
     filters['novedades'] = st.sidebar.radio(
         "Novedades:",
         ("Todos", "Con Novedades", "Sin Novedades")
@@ -71,15 +69,42 @@ def sidebar_filters(df):
     return filters
 
 def display_detailed_data(df, title, default_cols):
-    """Muestra un selector de columnas y una tabla de datos."""
-    st.subheader(title)
+    """
+    Muestra una tabla de datos con un selector de columnas OCULTO en un expander
+    para ahorrar espacio y mantener la vista limpia.
+    """
+    # 1. Encabezado con conteo de registros (Mejor UX)
+    col_header, col_count = st.columns([3, 1])
+    with col_header:
+        st.subheader(title)
+    with col_count:
+        st.markdown(f"<div style='text-align: right; padding-top: 10px; color: gray;'>Total: <b>{len(df):,}</b></div>", unsafe_allow_html=True)
+    
     all_columns = df.columns.tolist()
     
-    selected_columns = st.multiselect(
-        f"Selecciona columnas para la tabla '{title}':",
-        options=all_columns,
-        default=[col for col in default_cols if col in all_columns]
-    )
+    # 2. Envolvemos el selector en st.expander con expanded=False (Cerrado por defecto)
+    with st.expander(f"Personalizar columnas de: {title}", expanded=False):
+        
+        # Generamos una 'key' única basada en el título para evitar errores de Streamlit
+        # (Duplicate Widget ID) ya que usas esta función dos veces.
+        unique_key = f"multiselect_{title.replace(' ', '_').lower()}"
+        
+        selected_columns = st.multiselect(
+            "Selecciona las columnas visibles:",
+            options=all_columns,
+            default=[col for col in default_cols if col in all_columns],
+            key=unique_key,
+            label_visibility="collapsed" # Ocultamos la etiqueta interna para ganar más espacio
+        )
     
+    # 3. Mostramos la tabla usando st.data_editor (Más moderno y permite ordenar)
     if selected_columns:
-        st.dataframe(df[selected_columns])
+        st.data_editor(
+            df[selected_columns],
+            use_container_width=True,
+            hide_index=True,
+            disabled=True, # Modo lectura, pero permite interactuar (ordenar, copiar)
+            key=f"editor_{unique_key}" # Key única para la tabla también
+        )
+    else:
+        st.warning("⚠️ Por favor selecciona al menos una columna para visualizar la tabla.")

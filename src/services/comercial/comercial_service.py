@@ -11,7 +11,7 @@ def prepare_tab5_data(df_cartera, df_fnz):
     1. Identificar clientes potenciales para retanqueo.
     2. Identificar seguimiento de nuevos créditos (Cosechas recientes).
     """
-    # --- PARTE 1: RETANQUEO (Tu lógica existente) ---
+    # --- PARTE 1: RETANQUEO ---
     df = df_cartera.copy()
     
     numeric_cols = ['Total_Cuotas', 'Cuotas_Pagadas', 'Dias_Atraso_Final']
@@ -42,26 +42,38 @@ def prepare_tab5_data(df_cartera, df_fnz):
             if col in df_fnz.columns:
                 df_fnz[col] = df_fnz[col].astype(str).str.strip().fillna("Sin Información")
 
-    # --- PARTE 2: NUEVA LÓGICA DE CRÉDITOS NUEVOS (COSECHAS) ---
-    # Usamos el df original (df_cartera) pero aseguramos tipos
+    # --- PARTE 2: CRÉDITOS NUEVOS (COSECHAS) ---
     df_nuevos = df_cartera.copy()
     
-    # Conversiones necesarias
+    # 1. Conversión de FECHAS
     df_nuevos['Fecha_Desembolso'] = pd.to_datetime(df_nuevos['Fecha_Desembolso'], errors='coerce')
+    
+    # Corrección de Fecha_Ultimo_pago
+    df_nuevos['Fecha_Ultimo_pago'] = pd.to_datetime(df_nuevos['Fecha_Ultimo_pago'], errors='coerce')
+    df_nuevos['Fecha_Ultimo_pago'] = df_nuevos['Fecha_Ultimo_pago'].dt.strftime('%Y-%m-%d').fillna("Sin Pagos")
+
+    # 2. Conversión de NUMÉRICOS
     cols_num_nuevos = ['Cuotas_Pagadas', 'Dias_Atraso_Final', 'Valor_Vencido', 'Total_Cuotas']
     for col in cols_num_nuevos:
         df_nuevos[col] = pd.to_numeric(df_nuevos[col], errors='coerce').fillna(0)
 
-    # 1. Filtro de tiempo: Últimos 6 meses
+    # 3. FILTROS (Tiempo + Mora General + Exclusión 'SIN MORA')
     fecha_actual = datetime.now()
     fecha_corte_6_meses = fecha_actual - timedelta(days=180)
     
+    # Normalizamos la columna Primera_Cuota_Mora para evitar errores de espacios o mayúsculas
+    if 'Primera_Cuota_Mora' in df_nuevos.columns:
+        df_nuevos['Primera_Cuota_Mora'] = df_nuevos['Primera_Cuota_Mora'].astype(str).str.strip().str.upper()
+    else:
+        df_nuevos['Primera_Cuota_Mora'] = ''
+
     df_cosechas = df_nuevos[
         (df_nuevos['Fecha_Desembolso'] >= fecha_corte_6_meses) &
-        (df_nuevos['Dias_Atraso_Final'] > 0) # Solo los que tienen mora, que es lo que quieres gestionar
+        (df_nuevos['Dias_Atraso_Final'] > 0) &
+        (df_nuevos['Primera_Cuota_Mora'] != 'SIN MORA') # <--- NUEVA CONDICIÓN APLICADA
     ].copy()
 
-    # 2. Segmentación en 3 grupos
+    # 4. Segmentación en 3 grupos
     condiciones = [
         (df_cosechas['Cuotas_Pagadas'] == 0), # No pagó la primera
         (df_cosechas['Cuotas_Pagadas'] == 1), # Pagó 1ra, debe la 2da
@@ -75,11 +87,11 @@ def prepare_tab5_data(df_cartera, df_fnz):
     
     df_cosechas['Grupo_Seguimiento'] = np.select(condiciones, etiquetas, default='OTROS')
     
-    # Filtramos para quitar 'OTROS' (los que van al día o tienen más de 6 pagadas)
+    # Filtramos para quitar 'OTROS'
     df_cosechas = df_cosechas[df_cosechas['Grupo_Seguimiento'] != 'OTROS']
 
     return {
         "potenciales_retanqueo": df_retanqueo,
         "data_fnz": df_fnz,
-        "data_cosechas": df_cosechas # <--- Nuevo DataFrame agregado al retorno
+        "data_cosechas": df_cosechas
     }

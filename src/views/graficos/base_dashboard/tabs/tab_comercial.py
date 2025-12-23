@@ -229,6 +229,7 @@ def render(data):
                 key="editor_retanqueo"
             )
     st.markdown("---")
+
     st.header("Seguimiento a Créditos Nuevos (Últimos 6 Meses)")
     st.info("Visualizando créditos con desembolso reciente que presentan mora actualmente.")
 
@@ -237,8 +238,8 @@ def render(data):
         # Columnas que quieres mostrar en las tablas
         columnas_visibles = [
             'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Direccion',
-            'Fecha_Desembolso', 'Valor_Desembolso', 'Cuotas_Pagadas', 
-            'Dias_Atraso_Final', 'Valor_Vencido', 'Nombre_Vendedor'
+            'Fecha_Desembolso', 'Valor_Desembolso', 'Cuotas_Pagadas','Primera_Cuota_Mora','Fecha_Ultimo_pago', 
+            'Cuota_Vigente','Fecha_Cuota_Vigente','Total_Cuotas','Dias_Atraso_Final', 'Valor_Vencido', 'Nombre_Vendedor'
         ]
         
         # Aseguramos que existan en el DF

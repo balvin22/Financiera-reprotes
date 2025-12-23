@@ -31,7 +31,7 @@ def load_and_process_data(uploaded_file):
         "Meta_Intereses", "Meta_Saldo", "Meta_%", "Meta_$", "Meta_T.R_%","Meta_General",
         "Meta_T.R_$", "Cuotas_Pagadas", "Fecha_Cuota_Atraso", "Primera_Cuota_Mora",
         "Valor_Cuota_Atraso", "Valor_Vencido", "Dias_Atraso_Final","Fecha_Ultimo_pago","Rango_Ultimo_pago",
-        "Franja_Meta_Final", "Franja_Cartera_Final", "Rodamiento_Cartera","Valor_Cuota_Vigente",
+        "Franja_Meta_Final", "Franja_Cartera_Final", "Rodamiento_Cartera",'Cuota_Vigente',"Valor_Cuota_Vigente",
         "Recaudo_Anticipado", "Recaudo_Meta", "Total_Recaudo", "Fecha_Cuota_Vigente","Total_Recaudo_Sin_Anti"
     ]
     
@@ -82,8 +82,7 @@ def load_and_process_data(uploaded_file):
             usecols=cols_novedades
         )
 
-        date_cols = ["Fecha_Desembolso", "Fecha_Ultima_Novedad", "Fecha_Cuota_Atraso", 
-                     "Primera_Cuota_Mora",]
+        date_cols = ["Fecha_Desembolso", "Fecha_Ultima_Novedad", "Fecha_Cuota_Atraso", ]
         for col in date_cols:
             if col in df_cartera.columns:
                 df_cartera[col] = pd.to_datetime(df_cartera[col], errors="coerce").dt.date

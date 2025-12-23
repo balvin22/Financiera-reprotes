@@ -162,6 +162,7 @@ def load_and_process_data(uploaded_file):
                 'ESTADO':'Estado',
                 'ANALISTA':'Analista_Asociado',
                 'FECHA':'Fecha',
+                'REGIONAL':'Regional_Venta',
                 'DESEMBOLSO':'Credito_Desembolsado',
                 'CEDULA':'Cedula_Cliente',
                 'FS1NACFEC':'Fecha_Nacimiento',

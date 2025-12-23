@@ -31,17 +31,17 @@ def main():
     
     df_cartera = filtering.add_call_center_column(df_cartera)
     filters = ui_components.sidebar_filters(df_cartera)
-    df_cartera_filtrada, df_novedades_filtrada, df_llamadas_filtrada, df_mensajeria_filtrada = filtering.apply_main_filters(
-        df_cartera, df_novedades, df_llamadas, df_mensajeria, filters
+    df_cartera_filtrada, df_novedades_filtrada, df_llamadas_filtrada,df_mensajeria_filtrada = filtering.apply_main_filters(
+        df_cartera, df_novedades, df_llamadas, df_mensajeria,filters,
     )
     tab1_data = data_processing.prepare_tab1_data(df_cartera_filtrada)
     tab2_data = data_processing.prepare_tab2_data(df_cartera_filtrada, df_novedades_filtrada)
     tab3_data = data_processing.prepare_tab3_data(df_cartera_filtrada)
     tab4_data = data_processing.prepare_tab4_data(df_cartera_filtrada, df_novedades_filtrada)
-    tab5_data = data_processing.prepare_tab5_data(df_cartera_filtrada)
+    # tab5_data = data_processing.prepare_tab5_data(df_cartera_filtrada)
     
     tab5_data = prepare_tab5_data(
-        df_cartera_filtrada)
+        df_cartera_filtrada,df_fnz)
     
     tab6_data = prepare_tab6_data(
         df_cartera_filtrada, 

@@ -3,14 +3,15 @@ import charts_rodamientos
 
 def render(tab2_data):
     """
-    Renderiza el contenido de la pestaña "Seguimientos y Gestión".
+    Renderiza el contenido con una distribución COMPACTA de alta densidad.
     """
-
     st.header("Seguimientos y Gestión")
-    col1, col2, col3 = st.columns([2, 1.2, 1.2])
+
+    col1, col2, col3 = st.columns([1, 1, 0.8], gap="small")
+    # --- COLUMNA 1: RECAUDO
     with col1:
         with st.container(border=True):
-            st.markdown("<h5>Recaudo General</h5>", unsafe_allow_html=True)
+            st.markdown("<h5 style='text-align: center; margin-bottom: 0;'>Recaudo General</h5>", unsafe_allow_html=True)
             conteo_estados_donut = tab2_data.get("donut_data")
             donut_chart_fig = charts_rodamientos.create_recaudo_donut_chart(
                 conteo_estados_donut,
@@ -18,253 +19,291 @@ def render(tab2_data):
                 show_center_text=False
             )
             if donut_chart_fig:
-                # Quitamos la altura fija para que se ajuste al contenedor
-                donut_chart_fig.update_layout(height=None, margin=dict(t=10, b=10))
+                # height=420 llena la columna verticalmente. Margenes en 0 eliminan espacio blanco.
+                donut_chart_fig.update_layout(
+                    height=420, 
+                    margin=dict(t=30, b=10, l=10, r=10),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
+                )
                 st.plotly_chart(donut_chart_fig, use_container_width=True)
             else:
-                st.info("No hay datos de recaudo.")
+                st.info("Sin datos.")
 
+    # --- COLUMNA 2: GESTIÓN GLOBAL (MACRO) ---
     with col2:
         with st.container(border=True):
-            st.markdown("<h5>Créditos con PAGO</h5>", unsafe_allow_html=True)
+            st.markdown("<h5 style='text-align: center; margin-bottom: 0;'>Gestión Global</h5>", unsafe_allow_html=True)
+            grouped_data_todos = tab2_data.get("sunburst_initial_grouped")
+            conteo_data_todos = tab2_data.get("sunburst_initial_counts")
+            
+            sunburst_todos_fig = charts_rodamientos.create_nested_pie_chart(
+                grouped_data_todos,
+                conteo_data_todos,
+                height=420 # Igualamos altura a la columna 1
+            )
+            if sunburst_todos_fig:
+                # Ajustamos márgenes agresivamente
+                sunburst_todos_fig.update_layout(margin=dict(t=30, b=10, l=10, r=10))
+                st.plotly_chart(sunburst_todos_fig, use_container_width=True)
+            else:
+                st.info("Sin datos.")
+
+    # --- COLUMNA 3: DETALLES (APILADOS) ---
+    with col3:
+        # GRÁFICO SUPERIOR: CON PAGO
+        with st.container(border=True):
+            st.markdown("<h6 style='text-align: center; margin: 0; color: #28a745;'>Créditos CON PAGO</h6>", unsafe_allow_html=True)
             grouped_data_pago, conteo_data_pago = tab2_data.get("detalle_pago", (None, None))
             sunburst_pago_fig = charts_rodamientos.create_nested_pie_chart(
                 grouped_data_pago,
                 conteo_data_pago,
-                height=250 # Una altura fija y más pequeña funciona bien aquí
+                height=180 # Altura reducida (mitad aprox)
             )
             if sunburst_pago_fig:
+                sunburst_pago_fig.update_layout(margin=dict(t=20, b=10, l=10, r=10))
                 st.plotly_chart(sunburst_pago_fig, use_container_width=True)
             else:
-                st.info("No hay datos de gestión.")
+                st.write("Sin datos.")
 
-    with col3:
+        # GRÁFICO INFERIOR: SIN PAGO
         with st.container(border=True):
-            st.markdown("<h5>Créditos SIN PAGO</h5>", unsafe_allow_html=True)
+            st.markdown("<h6 style='text-align: center; margin: 0; color: #dc3545;'>Créditos SIN PAGO</h6>", unsafe_allow_html=True)
             grouped_data_sin_pago, conteo_data_sin_pago = tab2_data.get("detalle_sin_pago", (None, None))
             detalle_sin_pago_fig = charts_rodamientos.create_nested_pie_chart(
                 grouped_data_sin_pago,
                 conteo_data_sin_pago,
-                height=250 
+                height=180 # Altura reducida (mitad aprox)
             )
             if detalle_sin_pago_fig:
+                detalle_sin_pago_fig.update_layout(margin=dict(t=20, b=10, l=10, r=10))
                 st.plotly_chart(detalle_sin_pago_fig, use_container_width=True)
             else:
-                st.warning("No hay datos de gestión.")
+                st.write("Sin datos.")
+
     st.markdown("---")
 
-    # El gráfico de "Todos los Créditos" puede ir abajo, ocupando todo el ancho
-    st.markdown("<h5>Detalle de Todos los Créditos</h5>", unsafe_allow_html=True)
-    with st.container(border=True): # Opcional: También puedes poner este en una tarjeta
-        grouped_data_todos = tab2_data.get("sunburst_initial_grouped")
-        conteo_data_todos = tab2_data.get("sunburst_initial_counts")
-        sunburst_todos_fig = charts_rodamientos.create_nested_pie_chart(
-            grouped_data_todos,
-            conteo_data_todos,
-            height=450
-        )
-        if sunburst_todos_fig:
-            st.plotly_chart(sunburst_todos_fig, use_container_width=True)
-        else:
-            st.info("No hay datos de gestión para mostrar.")
-    st.markdown("---")
-
-    st.header("Detalle de Créditos con Gestion")
+    # --- TABLA 1: DETALLE DE CRÉDITOS CON GESTIÓN ---
+    st.header("Detalle de Créditos con Gestión")
     df_completo = tab2_data.get("data_para_tabla")
 
     if df_completo is not None and not df_completo.empty:
-        st.write("#### Filtros de Búsqueda")
-        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-        with col_f1:
-            filtro_pago = st.selectbox(
-                "Estado de Pago:",
-                options=['TODOS', 'PAGO', 'SIN PAGO'],
-                index=0
-            )
-        with col_f2:
-            # Filtro por Estado de Gestión
-            filtro_gestion = st.selectbox(
-                "Estado de Gestión:",
-                options=['TODOS', 'CON GESTIÓN', 'SIN GESTIÓN'],
-                index=0
-            )
-        with col_f3:
-            st.write("Cargo que Gestionó:") # Etiqueta fuera del popover
-            # Obtenemos los cargos disponibles
-            cargos_disponibles = sorted(df_completo['Cargo_Usuario'].unique())
-            
-            # Usamos un popover que actúa como un botón desplegable
-            with st.popover("Seleccionar Cargos...", use_container_width=True):
+        
+        # Filtros organizados
+        with st.expander("Filtros de Búsqueda (Gestión)", expanded=False): # Expanded=False para limpiar vista inicial
+            col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+
+            # --- FILTRO 1: Estado de Pago ---
+            with col_f1:
+                st.write("**Estado de Pago**")
+                opciones_pago_gral = ['PAGO', 'SIN PAGO']
+                with st.popover("Seleccionar...", use_container_width=True):
+                    if st.button("Todos", use_container_width=True, key="sel_all_pago_gral"):
+                        for opt in opciones_pago_gral: st.session_state[f"pago_gral_{opt}"] = True
+                    if st.button("Ninguno", use_container_width=True, key="desel_all_pago_gral"):
+                        for opt in opciones_pago_gral: st.session_state[f"pago_gral_{opt}"] = False
+                    st.divider()
+                    for opt in opciones_pago_gral:
+                        if f"pago_gral_{opt}" not in st.session_state:
+                            st.session_state[f"pago_gral_{opt}"] = True
+                        st.checkbox(opt, key=f"pago_gral_{opt}")
                 
-                # Botones para seleccionar/deseleccionar todos rápidamente
-                if st.button("Seleccionar Todos", use_container_width=True, key="select_all_cargos"):
-                    for cargo in cargos_disponibles:
-                        st.session_state[f"cargo_{cargo}"] = True
+                seleccion_pago_gral = [opt for opt in opciones_pago_gral if st.session_state.get(f"pago_gral_{opt}", True)]
+                st.caption(f"{len(seleccion_pago_gral)} seleccionados.")
+
+            # --- FILTRO 2: Estado de Gestión ---
+            with col_f2:
+                st.write("**Estado de Gestión**")
+                opciones_gestion_gral = ['CON GESTIÓN', 'SIN GESTIÓN']
+                with st.popover("Seleccionar...", use_container_width=True):
+                    if st.button("Todos", use_container_width=True, key="sel_all_gest_gral"):
+                        for opt in opciones_gestion_gral: st.session_state[f"gest_gral_{opt}"] = True
+                    if st.button("Ninguno", use_container_width=True, key="desel_all_gest_gral"):
+                        for opt in opciones_gestion_gral: st.session_state[f"gest_gral_{opt}"] = False
+                    st.divider()
+                    for opt in opciones_gestion_gral:
+                        if f"gest_gral_{opt}" not in st.session_state:
+                            st.session_state[f"gest_gral_{opt}"] = True
+                        st.checkbox(opt, key=f"gest_gral_{opt}")
                 
-                if st.button("Deseleccionar Todos", use_container_width=True, key="deselect_all_cargos"):
+                seleccion_gestion_gral = [opt for opt in opciones_gestion_gral if st.session_state.get(f"gest_gral_{opt}", True)]
+                st.caption(f"{len(seleccion_gestion_gral)} seleccionados.")
+
+            # --- FILTRO 3: Cargos ---
+            with col_f3:
+                st.write("**Cargo Usuario**") 
+                cargos_disponibles = sorted(df_completo['Cargo_Usuario'].unique())
+                
+                with st.popover("Seleccionar Cargos...", use_container_width=True):
+                    if st.button("Todos", use_container_width=True, key="select_all_cargos"):
+                        for cargo in cargos_disponibles: st.session_state[f"cargo_{cargo}"] = True
+                    if st.button("Ninguno", use_container_width=True, key="deselect_all_cargos"):
+                        for cargo in cargos_disponibles: st.session_state[f"cargo_{cargo}"] = False
+                    st.divider()
                     for cargo in cargos_disponibles:
-                        st.session_state[f"cargo_{cargo}"] = False
-                st.markdown("---")
+                        if f"cargo_{cargo}" not in st.session_state:
+                            st.session_state[f"cargo_{cargo}"] = True 
+                        st.checkbox(cargo, key=f"cargo_{cargo}")
 
-                # Creamos un checkbox para cada cargo disponible
-                for cargo in cargos_disponibles:
-                    # Inicializamos el estado de cada checkbox si no existe
-                    if f"cargo_{cargo}" not in st.session_state:
-                        st.session_state[f"cargo_{cargo}"] = True # Por defecto, todos seleccionados
-                    
-                    st.checkbox(cargo, key=f"cargo_{cargo}")
+                filtro_cargos = [cargo for cargo in cargos_disponibles if st.session_state.get(f"cargo_{cargo}", False)]
+                st.caption(f"{len(filtro_cargos)} cargos.")
+                
+            # --- FILTRO 4: Excluir Cargos ---
+            with col_f4:
+                st.write("**Excluir Cargos**")
+                with st.popover("Seleccionar Exclusión...", use_container_width=True):
+                    if st.button("Excluir Todos", use_container_width=True, key="exclude_all_cargos"):
+                        for cargo in cargos_disponibles: st.session_state[f"exclude_cargo_{cargo}"] = True
+                    if st.button("Limpiar", use_container_width=True, key="exclude_none_cargos"):
+                        for cargo in cargos_disponibles: st.session_state[f"exclude_cargo_{cargo}"] = False
+                    st.divider()
+                    for cargo in cargos_disponibles:
+                        if f"exclude_cargo_{cargo}" not in st.session_state:
+                            st.session_state[f"exclude_cargo_{cargo}"] = False
+                        st.checkbox(cargo, key=f"exclude_cargo_{cargo}")
 
-            filtro_cargos = [cargo for cargo in cargos_disponibles if st.session_state.get(f"cargo_{cargo}", False)]
-            st.caption(f"{len(filtro_cargos)} de {len(cargos_disponibles)} cargos seleccionados.")
+                cargos_a_excluir = [cargo for cargo in cargos_disponibles if st.session_state.get(f"exclude_cargo_{cargo}", False)]
+                st.caption(f"{len(cargos_a_excluir)} vetados.")     
             
-        with col_f4:
-            st.write("Excluir créditos gestionados por:")
-            with st.popover("Seleccionar para Excluir...", use_container_width=True):
-                if st.button("Excluir Todos", use_container_width=True, key="exclude_all_cargos"):
-                    for cargo in cargos_disponibles:
-                        st.session_state[f"exclude_cargo_{cargo}"] = True
-                if st.button("No Excluir Ninguno", use_container_width=True, key="exclude_none_cargos"):
-                    for cargo in cargos_disponibles:
-                        st.session_state[f"exclude_cargo_{cargo}"] = False
-                st.markdown("---")
-                for cargo in cargos_disponibles:
-                    # El estado por defecto es NO excluir (False)
-                    if f"exclude_cargo_{cargo}" not in st.session_state:
-                        st.session_state[f"exclude_cargo_{cargo}"] = False
-                    st.checkbox(cargo, key=f"exclude_cargo_{cargo}")
+        # --- APLICACIÓN DE FILTROS ---
+        df_filtrado = df_completo.copy() 
 
-            cargos_a_excluir = [cargo for cargo in cargos_disponibles if st.session_state.get(f"exclude_cargo_{cargo}", False)]
-            st.caption(f"{len(cargos_a_excluir)} cargos vetados.")    
-            
-        df_filtrado = df_completo.copy() # Empezamos con todos los datos
+        # 1. Lógica de Exclusión
         if cargos_a_excluir:
-            # Paso 1: Identificar todos los créditos únicos que fueron tocados por los cargos a excluir
             creditos_a_excluir_set = set(df_filtrado[df_filtrado['Cargo_Usuario'].isin(cargos_a_excluir)]['Credito'].unique())
-            # Paso 2: Eliminar TODAS las filas de esos créditos del dataframe
             if creditos_a_excluir_set:
                 df_filtrado = df_filtrado[~df_filtrado['Credito'].isin(creditos_a_excluir_set)]            
-        if filtro_pago != 'TODOS':
-            df_filtrado = df_filtrado[df_filtrado['Estado_Pago'] == filtro_pago]
-        if filtro_gestion != 'TODOS':
-            df_filtrado = df_filtrado[df_filtrado['Estado_Gestion'] == filtro_gestion]
+        
+        # 2. Filtros de Selección Múltiple
+        if seleccion_pago_gral:
+            df_filtrado = df_filtrado[df_filtrado['Estado_Pago'].isin(seleccion_pago_gral)]
+        
+        if seleccion_gestion_gral:
+            df_filtrado = df_filtrado[df_filtrado['Estado_Gestion'].isin(seleccion_gestion_gral)]
+            
         if filtro_cargos:
             df_filtrado = df_filtrado[df_filtrado['Cargo_Usuario'].isin(filtro_cargos)]
             
+        # --- SELECCIÓN DE COLUMNAS ---
         todas_las_columnas_disponibles = [
             'Empresa','Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
             'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Novedades_Por_Cargo',
             'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2', 
-            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Meta_$','Novedad', 'Tipo_Novedad','Meta_$'
-            # Añade aquí todas las demás columnas que desees
+            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Meta_$','Novedad', 'Tipo_Novedad'
         ]
-        columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedad','Tipo_Novedad',
-                                'Novedades_Por_Cargo',]
-        columnas_seleccionadas = st.multiselect(
-            "Selecciona las columnas a visualizar en la tabla:",
-            options=todas_las_columnas_disponibles,
-            default=columnas_por_defecto
-        )
+        columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedad','Tipo_Novedad', 'Novedades_Por_Cargo']
         
-        # --- Visualización de la Tabla ---
-        st.write(f"#### Mostrando {len(df_filtrado)} registros")
+        with st.expander("Personalizar Columnas de la Tabla"):
+            columnas_seleccionadas = st.multiselect(
+                "Columnas visibles:",
+                options=todas_las_columnas_disponibles,
+                default=columnas_por_defecto,
+                key="multi_cols_gestion_gral",
+                label_visibility="collapsed"
+            )
+        
+        st.markdown(f"**Resultados:** {len(df_filtrado)} registros encontrados.")
         if not columnas_seleccionadas:
-            st.warning("Por favor, selecciona al menos una columna para visualizar.")
+            st.warning("Selecciona al menos una columna.")
         elif not df_filtrado.empty:
-            # Aseguramos que solo usamos columnas que existen en el dataframe filtrado
             columnas_a_mostrar = [col for col in columnas_seleccionadas if col in df_filtrado.columns]
             st.data_editor(
                 df_filtrado[columnas_a_mostrar],
                 use_container_width=True,
                 hide_index=True,
-                disabled=True, # La tabla es de solo lectura
-                key="editor_busqueda_detallada"
+                disabled=True,
+                key="editor_busqueda_detallada",
+                height=400 # Altura fija para mejor UX
             )
         else:
-            st.info("No se encontraron créditos que cumplan con los filtros seleccionados.")
+            st.info("No se encontraron créditos con los filtros actuales.")
     else:
         st.warning("No hay datos procesados para mostrar en la tabla.")
                     
-    
-    st.subheader("Seguimiento por Rodammiento")
-    # 1. Obtenemos los datos ya agregados
-    agg_rodamiento = tab2_data.get("rodamiento_data")
-    if agg_rodamiento is not None and not agg_rodamiento.empty:
-        fig_rodamiento = charts_rodamientos.create_rodamiento_bar_chart(agg_rodamiento)
-        if fig_rodamiento:
-            st.plotly_chart(fig_rodamiento, use_container_width=True)
     st.markdown("---")
+
+    # SECCIÓN RODAMIENTOS
+    st.subheader("Análisis por Rodamiento")
     
-    st.subheader("Detalle de Créditos con Rodamientos")
-    df_processed_cartera = tab2_data.get("processed_cartera") # Asegúrate de que este es el dataframe correcto
+    # Usamos container para el gráfico de barras para darle marco
+    with st.container(border=True):
+        agg_rodamiento = tab2_data.get("rodamiento_data")
+        if agg_rodamiento is not None and not agg_rodamiento.empty:
+            fig_rodamiento = charts_rodamientos.create_rodamiento_bar_chart(agg_rodamiento)
+            if fig_rodamiento:
+                # Ajustamos altura del gráfico de barras
+                fig_rodamiento.update_layout(height=400)
+                st.plotly_chart(fig_rodamiento, use_container_width=True)
+        else:
+            st.info("No hay datos de rodamiento para graficar.")
+
+    st.markdown("### Detalle de Cartera (Rodamientos)")
+    df_processed_cartera = tab2_data.get("processed_cartera")
+    
     if df_processed_cartera is not None and not df_processed_cartera.empty:
         
-        # --- Creamos un layout organizado para todos los filtros de la tabla ---
-        st.write("#### Filtros de Búsqueda")
-        col_f1, col_f2, col_f3 = st.columns(3)
+        with st.expander("Filtros de Búsqueda (Rodamientos)", expanded=False):
+            col_f1, col_f2, col_f3 = st.columns(3)
 
-        # --- FILTRO 1: Estado de Rodamiento (Popover) ---
-        with col_f1:
-            st.write("Filtrar por rodamiento:")
-            # Aseguramos que agg_rodamiento existe para obtener las opciones
-            if agg_rodamiento is not None and not agg_rodamiento.empty:
-                rodamiento_options = sorted(agg_rodamiento['Rodamiento'].unique())
-                with st.popover("Seleccionar Rodamientos...", use_container_width=True):
-                    if st.button("Todos", use_container_width=True, key="select_all_rodamiento"):
-                        for opt in rodamiento_options: st.session_state[f"rod_{opt}"] = True
-                    if st.button("Ninguno", use_container_width=True, key="deselect_all_rodamiento"):
-                        for opt in rodamiento_options: st.session_state[f"rod_{opt}"] = False
-                    st.markdown("---")
-                    for opt in rodamiento_options:
-                        if f"rod_{opt}" not in st.session_state:
-                            st.session_state[f"rod_{opt}"] = True
-                        st.checkbox(opt, key=f"rod_{opt}")
-                
-                selected_rodamientos = [opt for opt in rodamiento_options if st.session_state.get(f"rod_{opt}", True)]
-                st.caption(f"{len(selected_rodamientos)} de {len(rodamiento_options)} seleccionados.")
-            else:
-                selected_rodamientos = []
-                st.caption("No hay datos de rodamiento.")
+            # --- FILTRO 1: Estado de Rodamiento ---
+            with col_f1:
+                st.write("**Rodamiento**")
+                if agg_rodamiento is not None and not agg_rodamiento.empty:
+                    rodamiento_options = sorted(agg_rodamiento['Rodamiento'].unique())
+                    with st.popover("Seleccionar...", use_container_width=True):
+                        if st.button("Todos", use_container_width=True, key="select_all_rodamiento"):
+                            for opt in rodamiento_options: st.session_state[f"rod_{opt}"] = True
+                        if st.button("Ninguno", use_container_width=True, key="deselect_all_rodamiento"):
+                            for opt in rodamiento_options: st.session_state[f"rod_{opt}"] = False
+                        st.divider()
+                        for opt in rodamiento_options:
+                            if f"rod_{opt}" not in st.session_state:
+                                st.session_state[f"rod_{opt}"] = True
+                            st.checkbox(opt, key=f"rod_{opt}")
+                    
+                    selected_rodamientos = [opt for opt in rodamiento_options if st.session_state.get(f"rod_{opt}", True)]
+                    st.caption(f"{len(selected_rodamientos)} seleccionados.")
+                else:
+                    selected_rodamientos = []
 
-        # --- FILTRO 2: Estado de Gestión (Convertido a Popover) ---
-        with col_f2:
-            st.write("Filtrar por gestión:")
-            gestion_options = ['CON GESTIÓN', 'SIN GESTIÓN']
-            with st.popover("Seleccionar Estados...", use_container_width=True):
-                if st.button("Todos", use_container_width=True, key="select_all_gestion_rod"):
-                    for opt in gestion_options: st.session_state[f"gestion_rod_{opt}"] = True
-                if st.button("Ninguno", use_container_width=True, key="deselect_all_gestion_rod"):
-                    for opt in gestion_options: st.session_state[f"gestion_rod_{opt}"] = False
-                st.markdown("---")
-                for opt in gestion_options:
-                    if f"gestion_rod_{opt}" not in st.session_state:
-                        st.session_state[f"gestion_rod_{opt}"] = True
-                    st.checkbox(opt, key=f"gestion_rod_{opt}")
+            # --- FILTRO 2: Estado de Gestión ---
+            with col_f2:
+                st.write("**Gestión**")
+                gestion_options = ['CON GESTIÓN', 'SIN GESTIÓN']
+                with st.popover("Seleccionar...", use_container_width=True):
+                    if st.button("Todos", use_container_width=True, key="select_all_gestion_rod"):
+                        for opt in gestion_options: st.session_state[f"gestion_rod_{opt}"] = True
+                    if st.button("Ninguno", use_container_width=True, key="deselect_all_gestion_rod"):
+                        for opt in gestion_options: st.session_state[f"gestion_rod_{opt}"] = False
+                    st.divider()
+                    for opt in gestion_options:
+                        if f"gestion_rod_{opt}" not in st.session_state:
+                            st.session_state[f"gestion_rod_{opt}"] = True
+                        st.checkbox(opt, key=f"gestion_rod_{opt}")
 
-            selected_gestiones = [opt for opt in gestion_options if st.session_state.get(f"gestion_rod_{opt}", True)]
-            st.caption(f"{len(selected_gestiones)} de {len(gestion_options)} seleccionados.")
+                selected_gestiones = [opt for opt in gestion_options if st.session_state.get(f"gestion_rod_{opt}", True)]
+                st.caption(f"{len(selected_gestiones)} seleccionados.")
 
-        # --- FILTRO 3: NUEVO filtro de Estado de Pago (Popover) ---
-        with col_f3:
-            st.write("Filtrar por pago:")
-            pago_options = ['PAGO', 'SIN PAGO']
-            with st.popover("Seleccionar Estados...", use_container_width=True):
-                if st.button("Todos", use_container_width=True, key="select_all_pago_rod"):
-                    for opt in pago_options: st.session_state[f"pago_rod_{opt}"] = True
-                if st.button("Ninguno", use_container_width=True, key="deselect_all_pago_rod"):
-                    for opt in pago_options: st.session_state[f"pago_rod_{opt}"] = False
-                st.markdown("---")
-                for opt in pago_options:
-                    if f"pago_rod_{opt}" not in st.session_state:
-                        st.session_state[f"pago_rod_{opt}"] = True
-                    st.checkbox(opt, key=f"pago_rod_{opt}")
+            # --- FILTRO 3: Estado de Pago ---
+            with col_f3:
+                st.write("**Pago**")
+                pago_options = ['PAGO', 'SIN PAGO']
+                with st.popover("Seleccionar...", use_container_width=True):
+                    if st.button("Todos", use_container_width=True, key="select_all_pago_rod"):
+                        for opt in pago_options: st.session_state[f"pago_rod_{opt}"] = True
+                    if st.button("Ninguno", use_container_width=True, key="deselect_all_pago_rod"):
+                        for opt in pago_options: st.session_state[f"pago_rod_{opt}"] = False
+                    st.divider()
+                    for opt in pago_options:
+                        if f"pago_rod_{opt}" not in st.session_state:
+                            st.session_state[f"pago_rod_{opt}"] = True
+                        st.checkbox(opt, key=f"pago_rod_{opt}")
 
-            selected_pagos = [opt for opt in pago_options if st.session_state.get(f"pago_rod_{opt}", True)]
-            st.caption(f"{len(selected_pagos)} de {len(pago_options)} seleccionados.")
+                selected_pagos = [opt for opt in pago_options if st.session_state.get(f"pago_rod_{opt}", True)]
+                st.caption(f"{len(selected_pagos)} seleccionados.")
 
-        # --- Lógica para aplicar los filtros a la tabla ---
-        df_tabla = df_processed_cartera.copy() # Empezamos con el dataframe completo
+        # --- APLICACIÓN DE FILTROS RODAMIENTO ---
+        df_tabla = df_processed_cartera.copy()
 
-        # Aplicamos cada filtro si hay selecciones
         if selected_rodamientos:
             df_tabla = df_tabla[df_tabla['Rodamiento'].isin(selected_rodamientos)]
         
@@ -277,29 +316,31 @@ def render(tab2_data):
         todas_las_columnas_posibles = [
             'Empresa', 'Credito', 'Cedula_Cliente', 'Nombre_Cliente', 'Celular', 'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente',
             'Nombre_Ciudad', 'Zona', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2', 'Franja_Cartera',
-            'Telefono_Codeudor2','Dias_Atraso_Final', 'Total_Recaudo',  'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
+            'Telefono_Codeudor2','Dias_Atraso_Final', 'Total_Recaudo', 'Meta_Intereses', 'Meta_Saldo', 'Valor_Vencido','Rodamiento',
             'Rodamiento_Cartera','Estado_Pago', 'Estado_Gestion', 'Meta_$'
-            
         ]
         columnas_disponibles = [col for col in todas_las_columnas_posibles if col in df_tabla.columns]
-        columnas_seleccionadas = st.multiselect(
-            "Selecciona las columnas a mostrar en la tabla:",
-            options=columnas_disponibles,
-            default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Franja_Cartera','Rodamiento','Meta_$','Meta_Saldo','Meta_Intereses', 'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente',
-                     'Valor_Vencido']
-        )
         
-        # --- Visualización de la Tabla (sin cambios) ---
-        st.info(f"Mostrando {len(df_tabla)} créditos que coinciden con los filtros")
+        with st.expander("Personalizar Columnas (Rodamientos)"):
+            columnas_seleccionadas = st.multiselect(
+                "Columnas visibles:",
+                options=columnas_disponibles,
+                default=['Credito', 'Cedula_Cliente', 'Nombre_Cliente','Celular','Franja_Cartera','Rodamiento','Meta_$','Meta_Saldo','Meta_Intereses', 'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente', 'Valor_Vencido'],
+                key="multi_cols_rodamientos",
+                label_visibility="collapsed"
+            )
+        
+        st.markdown(f"**Resultados:** {len(df_tabla)} créditos encontrados.")
         if not columnas_seleccionadas:
-            st.warning("Por favor, selecciona al menos una columna para mostrar en la tabla.")
+            st.warning("Selecciona al menos una columna.")
         elif not df_tabla.empty:
             st.data_editor(
                 df_tabla[columnas_seleccionadas], 
                 use_container_width=True,
                 hide_index=True,
                 disabled=True,
-                key="editor_detalle_rodamiento"
+                key="editor_detalle_rodamiento",
+                height=400
             )
         else:
             st.warning("No se encontraron créditos que coincidan con la selección.")

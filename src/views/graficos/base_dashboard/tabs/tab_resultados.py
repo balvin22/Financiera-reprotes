@@ -116,23 +116,38 @@ def render(tab3_data):
                     st.markdown("---")
                     continue
                 
-                # Preparación de la tabla para visualización (sin cambios)
                 df_tabla_franja['Faltante ($)'] = df_tabla_franja['Meta_Total'] - df_tabla_franja['Recaudo_Total']
+                
+                # 1. AGREGAMOS EL RENAME PARA 'Recaudo_Meta_Total' (que es tu Meta_T.R_$)
                 df_tabla_display = df_tabla_franja.rename(columns={
-                    'Franja_Meta': 'Franja', 'Meta_Total': 'Meta ($)', 'Recaudo_Total': 'Recaudo ($)',
-                    'Cumplimiento_%': 'Cumplimiento (%)', 'Regional_Cobro': 'Regional Cobro'
+                    'Franja_Meta': 'Franja', 
+                    'Meta_Total': 'Meta ($)', 
+                    'Recaudo_Total': 'Recaudo ($)',
+                    'Cumplimiento_%': 'Cumplimiento (%)', 
+                    'Regional_Cobro': 'Regional Cobro'
                 })
                 
-                column_order = ['Regional Cobro', 'Zona', 'Franja', 'Meta ($)', 'Recaudo ($)', 'Faltante ($)', 'Cumplimiento (%)']
+                # 2. AGREGAMOS LA COLUMNA AL ORDEN VISUAL
+                column_order = [
+                    'Regional Cobro', 
+                    'Zona', 
+                    'Franja', 
+                    'Meta ($)', 
+                    'Recaudo ($)', 
+                    'Faltante ($)', 
+                    'Cumplimiento (%)'
+                ]
                 df_tabla_display = df_tabla_display[[col for col in column_order if col in df_tabla_display.columns]]
 
-                # 1. Volvemos a generar el objeto de estilo y lo convertimos a HTML
+                # 3. AGREGAMOS EL FORMATO DE MONEDA AL NUEVO CAMPO
                 styled_df = df_tabla_display.style.map(
                     lambda x: charts_resultados.style_cumplimiento_bar(x, expected_compliance),
                     subset=['Cumplimiento (%)']
                 ).format({
-                    'Meta ($)': '${:,.0f}', 'Recaudo ($)': '${:,.0f}',
-                    'Faltante ($)': '${:,.0f}', 'Cumplimiento (%)': '{:.2%}'
+                    'Meta ($)': '${:,.0f}', 
+                    'Recaudo ($)': '${:,.0f}',
+                    'Faltante ($)': '${:,.0f}', 
+                    'Cumplimiento (%)': '{:.2%}'
                 }).hide(axis="index").set_table_attributes('width="100%"').set_table_styles([
                     {'selector': 'th, td', 'props': [('padding', '4px 10px'), ('text-align', 'center')]}
                 ])
@@ -176,26 +191,27 @@ def render(tab3_data):
     
     # --- NUEVA SECCIÓN: DETALLE POR COBRADOR ---
     st.markdown("---")
-    st.header("Resultados de Cumplimiento por Cobrador")
+    st.header("Detalle para franja: TR")
 
     if df_resultados_cobrador is not None and not df_resultados_cobrador.empty:
         
+        # 1. RENOMBRAMIENTO: Cambiamos 'Meta ($)' por 'Meta T.R ($)'
         df_cobrador_display = df_resultados_cobrador.rename(columns={
-            'Meta_Total': 'Meta ($)', 
+            'Meta_Total': 'Meta T.R ($)',      # <--- CAMBIO AQUÍ (Antes era 'Meta ($)')
             'Recaudo_Total': 'Recaudo ($)',
             'Cumplimiento_%': 'Cumplimiento (%)', 
             'Regional_Cobro': 'Regional Cobro'
         })
         
-        # Calculamos el faltante con las nuevas métricas
-        df_cobrador_display['Faltante ($)'] = df_cobrador_display['Meta ($)'] - df_cobrador_display['Recaudo ($)']
+        # 2. CÁLCULO FALTANTE: Usamos la nueva columna 'Meta T.R ($)' para la resta
+        df_cobrador_display['Faltante ($)'] = df_cobrador_display['Meta T.R ($)'] - df_cobrador_display['Recaudo ($)']
         
-        # 3. AGREGAMOS 'Zona' AL ORDEN DE COLUMNAS
+        # 3. ORDEN DE COLUMNAS: Actualizamos el nombre en la lista
         column_order_cobrador = [
             'Regional Cobro', 
-            'Zona',              # <-- AÑADIDO AQUÍ
+            'Zona',
             'Cobrador', 
-            'Meta ($)', 
+            'Meta T.R ($)',      # <--- CAMBIO AQUÍ
             'Recaudo ($)', 
             'Faltante ($)', 
             'Cumplimiento (%)'
@@ -203,27 +219,29 @@ def render(tab3_data):
         
         df_cobrador_display = df_cobrador_display[[col for col in column_order_cobrador if col in df_cobrador_display.columns]]
 
-        # Ordenar (opcional: Primero por Zona, luego por Cumplimiento)
+        # Ordenar 
         if 'Zona' in df_cobrador_display.columns:
              df_cobrador_display = df_cobrador_display.sort_values(by=['Zona', 'Cumplimiento (%)'], ascending=[True, False])
         else:
              df_cobrador_display = df_cobrador_display.sort_values(by='Cumplimiento (%)', ascending=False)
 
-        # 1. Volvemos a generar el objeto de estilo y lo convertimos a HTML
+        # 4. FORMATO: Actualizamos el diccionario de formato con el nuevo nombre
         expected_compliance, _, _ = charts_resultados.calculate_expected_compliance()
         styled_df_cobrador = df_cobrador_display.style.map(
             lambda x: charts_resultados.style_cumplimiento_bar(x, expected_compliance),
             subset=['Cumplimiento (%)']
         ).format({
-            'Meta ($)': '${:,.0f}', 'Recaudo ($)': '${:,.0f}',
-            'Faltante ($)': '${:,.0f}', 'Cumplimiento (%)': '{:.2%}'
+            'Meta T.R ($)': '${:,.0f}',  # <--- CAMBIO AQUÍ (Formato para la nueva columna)
+            'Recaudo ($)': '${:,.0f}',
+            'Faltante ($)': '${:,.0f}', 
+            'Cumplimiento (%)': '{:.2%}'
         }).hide(axis="index").set_table_attributes('width="100%"').set_table_styles([
             {'selector': 'th, td', 'props': [('padding', '4px 10px'), ('text-align', 'center')]}
         ])
         
         html_table_cobrador = styled_df_cobrador.to_html()
 
-        st.info("Tabla con el detalle de recaudo y meta por cada Cobrador y Franja de Mora.")
+        st.info("Tabla con el detalle de recaudo y Meta T.R por cada Cobrador (Acumulado).")
 
         # Usamos st.markdown para renderizar el HTML con scroll si es necesario
         if len(df_cobrador_display) > 10:

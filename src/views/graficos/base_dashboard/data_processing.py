@@ -130,20 +130,31 @@ def prepare_tab2_data(df_cartera, df_novedades):
 
         # 3. Preparar las columnas de detalle de novedades
         cols_detalle = ['Cedula_Cliente', 'Cargo_Usuario']
-        
-        # Añadir 'Novedad' si existe, si no, crear una columna para el merge
-        if 'Novedad' not in df_novedades.columns:
-            df_novedades['Novedad'] = 'N/A'
+    
+        # ... (lógica de 'Novedad' y 'Tipo_Novedad' igual) ...
         cols_detalle.append('Novedad')
-
-        # Añadir 'Tipo_Novedad' si existe, si no, crear una columna para el merge
-        if 'Tipo_Novedad' not in df_novedades.columns:
-            df_novedades['Tipo_Novedad'] = 'N/A'
         cols_detalle.append('Tipo_Novedad')
 
-        # 4. Unir los detalles de CADA novedad. Esto expandirá el DataFrame.
+        # --- OPTIMIZACIÓN AQUÍ ---
+        # Definimos qué columnas del CREDITO (df_con_conteo) realmente nos interesan para la tabla.
+        # Así evitamos arrastrar 40 columnas 'basura' que consumen memoria al multiplicarse.
+        columnas_clave_credito = [
+            'Cedula_Cliente', 'Cargo_Usuario', # Llaves obligatorias
+            'Empresa', 'Credito', 'Nombre_Cliente', 'Celular', 
+            'Dias_Atraso_Final', 'Total_Recaudo', 'Valor_Vencido', 
+            'Estado_Pago', 'Estado_Gestion', 'Novedades_Por_Cargo',
+            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente' 
+            # Agrega aquí solo lo que vayas a mostrar en el st.dataframe
+        ]
+        
+        # Filtramos df_con_conteo ANTES del merge explosivo
+        # Usamos intersection para evitar errores si alguna columna no existe
+        cols_a_usar = [c for c in columnas_clave_credito if c in df_con_conteo.columns]
+        df_base_reducida = df_con_conteo[cols_a_usar]
+
+        # 4. Unir los detalles (Ahora el merge es más ligero)
         df_para_tabla = pd.merge(
-            df_con_conteo,
+            df_base_reducida,  # Usamos la versión "flaca"
             df_novedades[cols_detalle], 
             on=['Cedula_Cliente', 'Cargo_Usuario'],
             how='left' 
@@ -174,7 +185,7 @@ def prepare_tab2_data(df_cartera, df_novedades):
 
 @st.cache_data
 def prepare_tab3_data(df):
-    """
+    """     
     Toma el dataframe filtrado globalmente y realiza la agregación principal
     por Zona y Franja_Meta y ahora por Cobrador para el Tab de Resultados.
     """

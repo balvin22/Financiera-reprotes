@@ -70,10 +70,10 @@ def sidebar_filters(df):
 
 def display_detailed_data(df, title, default_cols):
     """
-    Muestra una tabla de datos con un selector de columnas OCULTO en un expander
-    para ahorrar espacio y mantener la vista limpia.
+    Muestra una tabla y RETORNA el dataframe con las columnas visibles
+    para que pueda ser descargado tal cual se ve.
     """
-    # 1. Encabezado con conteo de registros (Mejor UX)
+    # 1. Encabezado con conteo
     col_header, col_count = st.columns([3, 1])
     with col_header:
         st.subheader(title)
@@ -82,11 +82,8 @@ def display_detailed_data(df, title, default_cols):
     
     all_columns = df.columns.tolist()
     
-    # 2. Envolvemos el selector en st.expander con expanded=False (Cerrado por defecto)
+    # 2. Selector de columnas
     with st.expander(f"Personalizar columnas de: {title}", expanded=False):
-        
-        # Generamos una 'key' única basada en el título para evitar errores de Streamlit
-        # (Duplicate Widget ID) ya que usas esta función dos veces.
         unique_key = f"multiselect_{title.replace(' ', '_').lower()}"
         
         selected_columns = st.multiselect(
@@ -94,17 +91,23 @@ def display_detailed_data(df, title, default_cols):
             options=all_columns,
             default=[col for col in default_cols if col in all_columns],
             key=unique_key,
-            label_visibility="collapsed" # Ocultamos la etiqueta interna para ganar más espacio
+            label_visibility="collapsed"
         )
     
-    # 3. Mostramos la tabla usando st.data_editor (Más moderno y permite ordenar)
+    # 3. Mostrar y RETORNAR
     if selected_columns:
+        # Creamos el dataframe recortado
+        df_visible = df[selected_columns]
+        
         st.data_editor(
-            df[selected_columns],
+            df_visible,
             use_container_width=True,
             hide_index=True,
-            disabled=True, # Modo lectura, pero permite interactuar (ordenar, copiar)
-            key=f"editor_{unique_key}" # Key única para la tabla también
+            disabled=True,
+            key=f"editor_{unique_key}"
         )
+        # --- CAMBIO CLAVE: Retornamos el DF visible ---
+        return df_visible
     else:
         st.warning("⚠️ Por favor selecciona al menos una columna para visualizar la tabla.")
+        return None

@@ -188,7 +188,7 @@ def render(tab2_data):
             'Empresa','Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona','Dias_Atraso_Final', 
             'Total_Recaudo', 'Valor_Vencido', 'Estado_Pago','Estado_Gestion', 'Cargo_Usuario','Novedades_Por_Cargo',
             'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2', 
-            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Meta_$','Novedad', 'Tipo_Novedad'
+            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente','Meta_$','Novedad', 'Tipo_Novedad', 'Nombre_Usuario'
         ]
         columnas_por_defecto = ['Credito', 'Nombre_Cliente', 'Cedula_Cliente', 'Celular', 'Cargo_Usuario','Novedad','Tipo_Novedad', 'Novedades_Por_Cargo']
         
@@ -218,7 +218,6 @@ def render(tab2_data):
             st.info("No se encontraron créditos con los filtros actuales.")
     else:
         st.warning("No hay datos procesados para mostrar en la tabla.")
-                    
     st.markdown("---")
 
     # SECCIÓN RODAMIENTOS
@@ -345,4 +344,4 @@ def render(tab2_data):
         else:
             st.warning("No se encontraron créditos que coincidan con la selección.")
     else:
-        st.info("No hay datos de cartera disponibles para mostrar en la tabla.")
+        st.info("No hay datos de cartera disponibles para mostrar en la tabla.")        

@@ -2,6 +2,7 @@ streamlit
 pandas
 plotly
 numpy
+xlsxwriter
 openpyxl
 pyinstaller
 pyinstaller-hooks-contrib

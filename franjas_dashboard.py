@@ -23,6 +23,7 @@ def create_analysis_chart(df_data, group_value):
     df_plot = df_data.groupby('MES', as_index=False, observed=True).agg({
         'META GNRL': 'sum',
         'RECAUDO $': 'sum',
+        'ANTICIPO': 'sum',
         'Meta_Proyectada': 'sum',
         'CUMPLIMIENTO': 'mean',
         'RECAUDO %': 'mean'
@@ -37,7 +38,12 @@ def create_analysis_chart(df_data, group_value):
     ), secondary_y=False)
     fig.add_trace(go.Bar(
         x=df_plot['MES'], y=df_plot['RECAUDO $'], name='Recaudo $',
-        marker_color='#1f77b4', text=df_plot['RECAUDO $'].apply(lambda x: f"${x:,.0f}"), textposition='auto',
+        marker_color="#19679f", text=df_plot['RECAUDO $'].apply(lambda x: f"${x:,.0f}"), textposition='auto',
+        textfont=dict(size=15)
+    ), secondary_y=False)
+    fig.add_trace(go.Bar(
+        x=df_plot['MES'], y=df_plot['ANTICIPO'], name='Anticipo',
+        marker_color="#b0d51d", text=df_plot['ANTICIPO'].apply(lambda x: f"${x:,.0f}"), textposition='auto',
         textfont=dict(size=15)
     ), secondary_y=False)
     fig.add_trace(go.Bar(
@@ -67,48 +73,106 @@ def create_analysis_chart(df_data, group_value):
 # --- FUNCIÓN MODIFICADA PARA GRÁFICOS DE RODAMIENTOS (APILADO POR CANTIDAD) ---
 def create_rodamientos_chart(df_data, group_value):
     """
-    Crea un gráfico de barras apiladas para el análisis de rodamientos,
-    mostrando la cantidad total de cuentas en el eje Y.
+    Crea un gráfico de barras apiladas con lógica inteligente para que
+    los textos pequeños se vean en una sola línea y quepan en la barra.
     """
+    # Agrupamos los datos
     df_plot = df_data.groupby('MES', as_index=False, observed=True).agg({
         'EMPEORO': 'sum',
         'MANTIENE': 'sum',
         'MEJORO': 'sum',
-        'PAGO TOTAL': 'sum'
+        'PAGO TOTAL': 'sum',
+        'NORMALIZA':'sum'
     })
+
+    # Calculamos el total
+    df_plot['TOTAL_CUENTAS'] = (
+        df_plot['EMPEORO'] + 
+        df_plot['MANTIENE'] + 
+        df_plot['MEJORO'] + 
+        df_plot['PAGO TOTAL'] + 
+        df_plot['NORMALIZA']
+    )
 
     names = {
         'EMPEORO': 'Empeoró',
         'PAGO TOTAL': 'Pago Total',
         'MANTIENE': 'Mantiene',
-        'MEJORO': 'Mejoró'
+        'MEJORO': 'Mejoró',
+        'NORMALIZA':'Normaliza'
     }
     colors = {
-        'Empeoró': '#d62728',
-        'Pago Total': '#1f77b4',
-        'Mantiene': '#ff7f0e',
-        'Mejoró': '#2ca02c'
+        'Empeoró': '#d62728',     # Rojo
+        'Pago Total': '#1f77b4',  # Azul
+        'Mantiene': '#ff7f0e',    # Naranja
+        'Mejoró': '#2ca02c',      # Verde
+        'Normaliza': '#9467bd'    # Morado
     }
 
     fig = go.Figure()
 
     for col in names.keys():
+        text_labels = []
+        for val, total in zip(df_plot[col], df_plot['TOTAL_CUENTAS']):
+            if val > 0 and total > 0:
+                pct = (val / total) * 100
+                
+                # --- LÓGICA INTELIGENTE DE TEXTO ---
+                # Si el porcentaje es menor al 12%, usamos UNA sola línea para ahorrar espacio vertical.
+                # Si es mayor, usamos DOS líneas para mejor estética.
+                if pct < 12:
+                    # Formato compacto: "25 (10.5%)"
+                    text_labels.append(f"<b>{val:,.0f}</b> ({pct:.1f}%)")
+                else:
+                    # Formato detallado con salto de línea:
+                    # "25
+                    # (10.5%)"
+                    text_labels.append(f"<b>{val:,.0f}</b><br>({pct:.1f}%)")
+            else:
+                text_labels.append("")
+
         fig.add_trace(go.Bar(
             x=df_plot['MES'],
             y=df_plot[col],
             name=names[col],
-            text=df_plot[col],
-            textposition='inside',
-            marker_color=colors[names[col]]
+            text=text_labels,
+            textposition='inside', # Forzamos que esté adentro
+            insidetextanchor='middle', # Centrado verticalmente
+            marker_color=colors[names[col]],
+            insidetextfont=dict(
+                color='white', 
+                size=12 # Tamaño base legible
+            )
         ))
 
-    # Configuramos el layout para que sea un gráfico de barras apiladas por cantidad
+    # Totales arriba de la barra
+    fig.add_trace(go.Scatter(
+        x=df_plot['MES'],
+        y=df_plot['TOTAL_CUENTAS'],
+        text=df_plot['TOTAL_CUENTAS'].apply(lambda x: f"<b>{x:,.0f}</b>"),
+        mode='text',
+        textposition='top center',
+        textfont=dict(size=16, color='black'), # Un poco más grande el total
+        showlegend=False,
+        hoverinfo='skip'
+    ))
+
+    max_y = df_plot['TOTAL_CUENTAS'].max()
+    
     fig.update_layout(
         barmode='stack',
         title_text=f"Análisis de Rodamientos por Cantidad de Cuentas para: {group_value}",
         xaxis_title="Mes",
-        yaxis_title="<b>Cantidad de Cuentas</b>", # Título del eje Y ajustado
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        yaxis_title="<b>Cantidad de Cuentas</b>",
+        yaxis=dict(
+            range=[0, max_y * 1.20] # 20% extra de aire arriba
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        
+        # --- ESTO AYUDA A QUE SE VEAN LOS TEXTOS ---
+        uniformtext_minsize=10, # Intenta no bajar de 10px
+        uniformtext_mode='hide', # Si es IMPOSIBLE que quepa, lo oculta (para no manchar), pero con el formato de 1 línea debería caber casi todo.
+        height=600 # <--- AUMENTAMOS ALTURA: Hacemos el gráfico más alto para que las barras tengan más píxeles verticales
     )
     return fig
 
@@ -137,7 +201,7 @@ if uploaded_file is not None:
     df_franjas.sort_values('MES', inplace=True)
 
     # --- LIMPIEZA Y PREPARACIÓN DE DATOS (RODAMIENTOS) ---
-    cols_to_numeric_rodamientos = ['EMPEORO', 'MANTIENE', 'MEJORO', 'PAGO TOTAL']
+    cols_to_numeric_rodamientos = ['EMPEORO', 'MANTIENE', 'MEJORO', 'NORMALIZA','PAGO TOTAL']
     for col in cols_to_numeric_rodamientos:
         df_rodamientos[col] = pd.to_numeric(df_rodamientos[col], errors='coerce')
     df_rodamientos.dropna(subset=cols_to_numeric_rodamientos, inplace=True)

@@ -183,16 +183,17 @@ def prepare_tab2_data(df_cartera, df_novedades):
         "data_para_tabla": df_para_tabla # Esta es la tabla ahora expandida
     }
 
+
 @st.cache_data
 def prepare_tab3_data(df):
-    """     
+    """      
     Toma el dataframe filtrado globalmente y realiza la agregación principal
     por Zona y Franja_Meta y ahora por Cobrador para el Tab de Resultados.
     """
 
     franjas_a_usar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']    
     df_para_grupo = df[df['Franja_Meta'].isin(franjas_a_usar)]
-    
+     
     zonas_a_excluir = ['CL1', 'CL2', 'CL3', 'CL4']
     df_para_grupo = df_para_grupo[~df_para_grupo['Zona'].isin(zonas_a_excluir)]
 
@@ -210,7 +211,7 @@ def prepare_tab3_data(df):
         if col not in df_para_grupo.columns:
             df_para_grupo[col] = default
         df_para_grupo[col] = pd.to_numeric(df_para_grupo[col], errors='coerce').fillna(0)
-    
+     
     # --- 2. Agregación Principal por Zona y Franja_Meta (para gráficos/tablas existentes) ---
     group_by_cols_zona = ['Zona', 'Franja_Meta']
     if 'Regional_Cobro' in df_para_grupo.columns:
@@ -220,7 +221,8 @@ def prepare_tab3_data(df):
         Meta_Total=('Meta_$', 'sum'),
         Recaudo_Total=('Recaudo_Meta', 'sum'), 
         Recaudo_Sin_Anti_Total=('Total_Recaudo_Sin_Anti', 'sum'),
-        Recaudo_Meta_Total=('Meta_T.R_$', 'sum')
+        Recaudo_Meta_Total=('Meta_T.R_$', 'sum'),
+        Cant_Cuentas=('Zona', 'size')  # <--- NUEVO: Cuenta la cantidad de registros (cuentas)
     ).reset_index()
 
     resultados_zona['Cumplimiento_%'] = 0.0
@@ -228,25 +230,22 @@ def prepare_tab3_data(df):
     resultados_zona.loc[mask_meta_valida_zona, 'Cumplimiento_%'] = (
         resultados_zona.loc[mask_meta_valida_zona, 'Recaudo_Total'] / resultados_zona.loc[mask_meta_valida_zona, 'Meta_Total']
     )
-    
+     
     # --- 3. NUEVA Agregación por Cobrador ---
-    # Usamos las mismas métricas
     group_by_cols_cobrador = ['Zona', 'Cobrador'] 
-    
+     
     if 'Regional_Cobro' in df_para_grupo.columns:
          group_by_cols_cobrador.insert(0, 'Regional_Cobro')
-    
+     
     # Eliminamos filas con cobrador vacío
     df_cobrador = df_para_grupo[df_para_grupo['Cobrador'].notna() & (df_para_grupo['Cobrador'] != '')].copy()
 
-    # 2. CAMBIO DE MÉTRICAS: 
-    # Meta_Total ahora usa 'Meta_T.R_$'
-    # Recaudo_Total ahora usa 'Total_Recaudo_Sin_Anti'
     resultados_cobrador = df_cobrador.groupby(group_by_cols_cobrador).agg(
-        Meta_Total=('Meta_T.R_$', 'sum'),             # <-- CAMBIO AQUÍ
-        Recaudo_Total=('Total_Recaudo_Sin_Anti', 'sum') # <-- CAMBIO AQUÍ
+        Meta_Total=('Meta_T.R_$', 'sum'),              
+        Recaudo_Total=('Total_Recaudo_Sin_Anti', 'sum'),
+        Cant_Cuentas=('Cobrador', 'size') # <--- También lo agregué aquí por si lo necesitas luego
     ).reset_index()
-    
+     
     # Cálculo del porcentaje de cumplimiento
     resultados_cobrador['Cumplimiento_%'] = 0.0
     mask_meta_valida_cobrador = resultados_cobrador['Meta_Total'] > 0

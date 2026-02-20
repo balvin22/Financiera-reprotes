@@ -17,22 +17,24 @@ def load_and_process_data(uploaded_file):
     """
     
     cols_cartera = [                                                                                                                                       
-        "Fecha_Desembolso", "Fecha_Ultima_Novedad", "Empresa", "Regional_Venta",
-        "Nombre_Ciudad", "Nombre_Vendedor", "Franja_Meta", "Rodamiento", "Gestor",
-        "Regional_Cobro", "Zona_Cobro", "Zona",
-        "Cantidad_Novedades", "Cedula_Cliente", "Credito", "Nombre_Producto",
-        "Obsequio", "Nombre_Cliente", "Correo", "Celular", "Direccion", "Barrio",
-        "Nombre_Codeudor2", "Cobrador", "Telefono_Cobrador", "Call_Center_Apoyo",
-        "Codigo_Vendedor", "Nombre_Call_Center", "Telefono_Call_Center",
-        "Telefono_Gestor", "Valor_Desembolso", "Movil_Vendedor", "Vendedor_Activo",
-        "Lider_Zona", "Codeudor1", "Total_Cuotas", "Nombre_Codeudor1",
-        "Telefono_Codeudor1", "Ciudad_Codeudor1", "Codeudor2", "Nombre_Codeudor2",
-        "Telefono_Codeudor2", "Ciudad_Codeudor2", "Valor_Cuota", "Dias_Atraso", "Franja_Cartera",
-        "Meta_Intereses", "Meta_Saldo", "Meta_%", "Meta_$", "Meta_T.R_%","Meta_General",
-        "Meta_T.R_$", "Cuotas_Pagadas", "Fecha_Cuota_Atraso", "Primera_Cuota_Mora",
-        "Valor_Cuota_Atraso", "Valor_Vencido", "Dias_Atraso_Final","Fecha_Ultimo_pago","Rango_Ultimo_pago",
-        "Franja_Meta_Final", "Franja_Cartera_Final", "Rodamiento_Cartera",'Cuota_Vigente',"Valor_Cuota_Vigente",
-        "Recaudo_Anticipado", "Recaudo_Meta", "Total_Recaudo", "Fecha_Cuota_Vigente","Total_Recaudo_Sin_Anti"
+                'Empresa', 'Credito', 'Fecha_Desembolso', 'Factura_Venta', 'Fecha_Facturada',
+                'Nombre_Producto', 'Cantidad_Producto', 'Obsequio', 'Cantidad_Obsequio',
+                'Cedula_Cliente', 'Nombre_Cliente', 'Correo','Celular','Direccion', 'Barrio',
+                'Nombre_Ciudad','Zona', 'Cobrador','Telefono_Cobrador', 'Zona_Cobro',
+                'Call_Center_Apoyo', 'Nombre_Call_Center','Telefono_Call_Center', 'Regional_Cobro',
+                'Gestor', 'Telefono_Gestor','Jefe_ventas','Celular_Jefe_Ventas','Codigo_Vendedor','Cedula_Vendedor',
+                'Nombre_Vendedor','Celular_Vendedor','Vendedor_Activo','Zona_Venta','Lider_Zona','Celular_Lider_Zona','Codigo_Centro_Costos',
+                'Regional_Venta', 'Codeudor1', 'Nombre_Codeudor1', 'Telefono_Codeudor1',
+                'Ciudad_Codeudor1', 'Codeudor2', 'Nombre_Codeudor2', 'Telefono_Codeudor2',
+                'Ciudad_Codeudor2', 'Valor_Desembolso', 'Total_Cuotas', 'Valor_Cuota',
+                'Dias_Atraso', 'Franja_Meta','Franja_Cartera', 'Saldo_Capital', 'Saldo_Interes_Corriente',
+                'Saldo_Avales', 'Meta_Intereses', 'Meta_General','Meta_Saldo', 'Meta_%', 'Meta_$',
+                'Meta_T.R_%', 'Meta_T.R_$', 'Cuotas_Pagadas', 'Cuota_Vigente',
+                'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente', 'Fecha_Cuota_Atraso',
+                'Primera_Cuota_Mora', 'Fecha_Ultimo_Pago_Inicial', 'Rango_Ultimo_pago_Inicial',
+                'Valor_Cuota_Atraso', 'Valor_Vencido','Fecha_Ultima_Novedad', 'Cantidad_Novedades','Fecha_Ultimo_pago','Rango_Ultimo_pago', 'Dias_Atraso_Final',
+                'Franja_Meta_Final','Franja_Cartera_Final', 'Rodamiento','Rodamiento_Cartera' ,
+                'Recaudo_Anticipado', 'Recaudo_Meta','Total_Recaudo','Total_Recaudo_Sin_Anti'
     ]
     
     cols_novedades = [
@@ -47,8 +49,8 @@ def load_and_process_data(uploaded_file):
     ]
     
     cols_mensajeria = [
-        "Codigo_Pais", "Numero_Telefono", "Nombre_Saliente", "Estado", "Estado_Mensaje", "Estado_Respuesta_Saliente",
-        "Respuesta_Saliente", "Flujo_Truora", "Primer_Mensaje_Agente", "Fecha_Llamada", "Call_Center", "Nombre_Call"
+        "Fecha_Mensaje", "Numero_Telefono", "Nombre_Saliente", "Estado", "Estado_Mensaje", "Estado_Respuesta_Entrante",
+        "Flujo_Truora", "Estado_Proceso", "Fallo_Proceso","Tipo_Respuesta_Agente","Call_Center", "Nombre_Call"
     ]
 
     # Inicialización de DataFrames opcionales
@@ -144,9 +146,7 @@ def load_and_process_data(uploaded_file):
                 ).dt.date
             
             str_cols_mensajeria = [
-                "Codigo_Pais", "Numero_Telefono", "Nombre_Saliente", "Estado", 
-                "Estado_Menasaje", "Estado_Respuesta_Saliemte", "Respuesta_Saliente", 
-                "Flujo_Truora", "Primer_Mensaje_Agente", "Call_Center", "Nombre_Call"
+               "Fecha_Mensaje", "Numero_Telefono", "Nombre_Saliente", "Estado", "Estado_Mensaje"
             ]
             for col in str_cols_mensajeria:
                 if col in df_mensajeria.columns:

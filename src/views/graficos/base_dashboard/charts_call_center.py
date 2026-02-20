@@ -254,11 +254,13 @@ def create_efectividad_call_chart(df_efectividad):
 
 def create_llamadas_por_dia_area_chart(df_llamadas_dia, filtros_respuesta: list, alerta_umbral: int):
     """
-    Crea un gráfico de área que muestra la tendencia de llamadas por día.
+    Crea un gráfico de área suavizada (Spline) moderno para la tendencia de llamadas
+    CON ETIQUETAS DE DATOS (Cantidades visibles).
     """
     if df_llamadas_dia.empty:
         return None
     
+    # 1. Filtrado de Datos
     if not filtros_respuesta:
         df_filtrado_agg = pd.DataFrame(columns=['Fecha', 'Total_Llamadas'])
         title_str = "NINGUNO"
@@ -270,104 +272,142 @@ def create_llamadas_por_dia_area_chart(df_llamadas_dia, filtros_respuesta: list,
             title_str = "TODAS"
         else:
             title_str = filtros_respuesta[0]
-    
-    BG_COLOR = '#3d3d3d'
-    GRID_COLOR = 'rgba(255, 255, 255, 0.2)'
-    LINE_COLOR = '#007FFF'
-    FILL_COLOR = 'rgba(0, 127, 255, 0.3)'
-
+            
     if df_filtrado_agg.empty:
         fig = go.Figure()
         fig.update_layout(
-            title=f"Tendencia de Llamadas (Días Hábiles): {title_str}",
-            xaxis_title="Fecha",
-            yaxis_title="Total Llamadas",
-            plot_bgcolor=BG_COLOR,
-            paper_bgcolor=BG_COLOR,
-            font_color='white',
+            xaxis={"visible": False}, yaxis={"visible": False},
             annotations=[{
-                "text": "No hay datos para esta selección.",
-                "xref": "paper", "yref": "paper",
-                "showarrow": False, "font": {"size": 16, "color": "white"}
-            }]
+                "text": "No hay datos para mostrar con los filtros actuales",
+                "xref": "paper", "yref": "paper", "showarrow": False,
+                "font": {"size": 16, "color": "#888"}
+            }],
+            plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
         )
         return fig
-        
+
     df_filtrado_agg.sort_values(by='Fecha', inplace=True)
     
-    df_filtrado_agg['Texto_Hover'] = df_filtrado_agg.apply(
-        lambda row: f"<b>Fecha:</b> {row['Fecha']:%d-%b-%Y}<br><b>Total:</b> {row['Total_Llamadas']:,.0f}".replace(',', '.'),
+    # --- COLORES Y ESTILOS ---
+    LINE_COLOR = '#3366CC'       
+    FILL_COLOR = 'rgba(51, 102, 204, 0.2)' 
+    MARKER_COLOR = '#FFFFFF'     
+    ALERT_COLOR = '#FF4B4B'      
+    
+    # 1. Texto para el Tooltip (Hover) - Detallado
+    df_filtrado_agg['Hover_Text'] = df_filtrado_agg.apply(
+        lambda row: f"<b>{row['Fecha']:%d %b}</b><br>Llamadas: <b>{row['Total_Llamadas']:,.0f}</b>".replace(',', '.'),
         axis=1
     )
-    
+
+    # 2. Texto para la Etiqueta (Label) - Solo el número
+    df_filtrado_agg['Label_Text'] = df_filtrado_agg['Total_Llamadas'].apply(
+        lambda x: f"{x:,.0f}".replace(',', '.')
+    )
+
     fig = go.Figure()
-    
-    # --- Trace principal ---
+
+    # --- TRACE PRINCIPAL ---
     fig.add_trace(go.Scatter(
         x=df_filtrado_agg['Fecha'],
         y=df_filtrado_agg['Total_Llamadas'],
-        mode='lines+markers',
-        fill='tozeroy',
-        marker=dict(color=LINE_COLOR, size=5),
-        line=dict(color=LINE_COLOR, width=2),
-        fillcolor=FILL_COLOR,
-        name=title_str,
-        hoverinfo='text',
-        text=df_filtrado_agg['Texto_Hover']
-    ))
-    
-    # --- Añadir línea de alerta y marcadores ---
-    if alerta_umbral > 0:
-        df_alerta = df_filtrado_agg[df_filtrado_agg['Total_Llamadas'] <= alerta_umbral].copy()
+        mode='lines+markers+text', # <--- AGREGADO '+text'
         
+        # Configuración de la Línea y Área
+        line=dict(color=LINE_COLOR, width=3, shape='spline', smoothing=1.3),
+        fill='tozeroy',
+        fillcolor=FILL_COLOR,
+        
+        # Configuración del Marcador (Punto)
+        marker=dict(
+            size=9, 
+            color=MARKER_COLOR, 
+            line=dict(width=2, color=LINE_COLOR)
+        ),
+        
+        # Configuración de la Etiqueta (Texto visible)
+        text=df_filtrado_agg['Label_Text'], # Muestra solo el número
+        textposition="top center",          # Ubicación encima del punto
+        textfont=dict(
+            size=11, 
+            color=LINE_COLOR,               # Mismo color que la línea para elegancia
+            family="Arial, sans-serif",
+            weight="bold"                   # Negrita para que se lea bien
+        ),
+        cliponaxis=False,                   # Permite que el texto se salga un poco del margen superior si es necesario
+        
+        # Configuración del Hover (Tooltip)
+        name='Llamadas',
+        customdata=df_filtrado_agg['Hover_Text'], # Pasamos el texto rico a customdata
+        hovertemplate="%{customdata}<extra></extra>" # Usamos customdata para el hover
+    ))
+
+    # --- LÍNEA DE ALERTA ---
+    if alerta_umbral > 0:
+        fig.add_hline(
+            y=alerta_umbral, 
+            line_dash="dash", 
+            line_color=ALERT_COLOR, 
+            line_width=1.5,
+            annotation_text=f"Meta ({alerta_umbral})", 
+            annotation_position="bottom right",
+            annotation_font=dict(color=ALERT_COLOR, size=10)
+        )
+        
+        # Puntos de Alerta
+        df_alerta = df_filtrado_agg[df_filtrado_agg['Total_Llamadas'] <= alerta_umbral].copy()
         if not df_alerta.empty:
             fig.add_trace(go.Scatter(
                 x=df_alerta['Fecha'],
                 y=df_alerta['Total_Llamadas'],
-                mode='markers',
-                marker=dict(color='red', size=10, symbol='x-thin', line=dict(width=2)),
-                name=f'Alerta (<= {alerta_umbral})',
-                hoverinfo='none' 
+                mode='markers+text', # También mostramos texto en las alertas
+                marker=dict(color=ALERT_COLOR, size=10, symbol='circle'),
+                text=df_alerta['Label_Text'],
+                textposition="bottom center", # Texto abajo para diferenciarlo
+                textfont=dict(size=11, color=ALERT_COLOR, weight="bold"),
+                name='Bajo Rendimiento',
+                hoverinfo='skip' 
             ))
 
-        fig.add_hline(
-            y=alerta_umbral, 
-            line_dash="dot", 
-            line_color="red",
-            annotation_text=f"Umbral Alerta ({alerta_umbral})", 
-            annotation_position="bottom right",
-            annotation_font_color="red"
-        )
-
+    # --- LAYOUT ---
     fig.update_layout(
-        title=f"Tendencia de Llamadas Diarias (Días Hábiles): {title_str}",
-        xaxis_title=None,
-        yaxis_title="Total Llamadas",
-        plot_bgcolor=BG_COLOR,
-        paper_bgcolor=BG_COLOR,
-        font_color='white',
+        title=dict(
+            text=f"Evolución Diaria de Llamadas ({title_str})",
+            font=dict(size=18, color='#333333'),
+            x=0,
+        ),
         xaxis=dict(
-            gridcolor=GRID_COLOR, 
             showgrid=False,
-            tickformat='%d-%b',
+            tickformat='%d %b',
+            tickfont=dict(color='#666'),
+            linecolor='#ddd',
+            showspikes=True,
+            spikethickness=1,
+            spikedash='dot',
+            spikecolor='#999',
+            spikemode='across'
         ),
         yaxis=dict(
-            gridcolor=GRID_COLOR, 
             showgrid=True,
-            zeroline=False
+            gridcolor='#f0f0f0',
+            zeroline=False,
+            tickfont=dict(color='#666'),
+            # Añadimos un poco de margen automático arriba para que quepan los números
+            automargin=True 
         ),
-        margin=dict(l=50, r=20, t=50, b=20),
         hovermode="x unified",
-        legend=dict( 
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=20, r=20, t=60, b=20),
+        legend=dict(
             orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1,
-            font=dict(color="white")
-        )
+            yanchor="bottom", y=1.02,
+            xanchor="right", x=1,
+            font=dict(size=11, color='#555')
+        ),
+        height=400
     )
-    
+
     return fig
 
 def create_mensajeria_funnel_chart(df_funnel):
@@ -376,13 +416,18 @@ def create_mensajeria_funnel_chart(df_funnel):
     """
     if df_funnel.empty:
         return None
+    
     df_chart = df_funnel.copy()
+    
+    # Aseguramos que 'Gestión en Sistema' tenga tilde para coincidir con el servicio
     df_chart['Etapa_Orden'] = df_chart['Etapa'].map({
         'Mensajes Entregados': 4,
         'Conversaciones': 3,
-        'Gestion en Sistema': 2,
+        'Gestión en Sistema': 2, 
         'Clientes con Pago': 1
     })
+    
+    # Ordenamos explícitamente usando esta columna auxiliar
     df_chart = df_chart.sort_values(by='Etapa_Orden', ascending=False) 
 
     fig = go.Figure(go.Funnel(
@@ -401,7 +446,7 @@ def create_mensajeria_funnel_chart(df_funnel):
         plot_bgcolor='rgba(0,0,0,0)', 
         paper_bgcolor='rgba(0,0,0,0)', 
         margin=dict(l=20, r=20, t=20, b=20),
-        font=dict(color='black')
+        font=dict(color='black') # O ajusta a 'white' si tu fondo es oscuro
     )
     
     return fig

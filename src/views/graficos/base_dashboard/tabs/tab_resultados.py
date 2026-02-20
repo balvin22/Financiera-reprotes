@@ -5,7 +5,6 @@ from datetime import date
 def render(tab3_data): 
     """
     Renderiza el contenido de la pestaña "Resultados".
-    Ahora maneja un diccionario con resultados por Zona y por Cobrador.
     """ 
     if tab3_data is None or not isinstance(tab3_data, dict):
         st.warning("No se encontraron datos de resultados para los filtros globales seleccionados.")
@@ -16,9 +15,8 @@ def render(tab3_data):
 
     if df_resultados_zona is None or df_resultados_zona.empty:
         st.warning("No se encontraron datos de resultados de ZONA para los filtros globales seleccionados.")
-        # Continuar para revisar la tabla de Cobrador
     
-    # --- FILTRO Y GRÁFICOS DE ZONAS (Lógica existente) ---
+    # --- FILTRO Y GRÁFICOS DE ZONAS ---
     st.header("Resultados de Cumplimiento por Zona y Franja")
 
     if df_resultados_zona is not None and not df_resultados_zona.empty:
@@ -56,31 +54,30 @@ def render(tab3_data):
             
             col_izquierda, col_derecha = st.columns([2, 1])
 
-            # --- Columna Izquierda: Cuadrícula de 2x2 para las franjas ---
+            # --- Columna Izquierda: Gráficos ---
             with col_izquierda:
                 franjas_a_mostrar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']
                 
                 fila1_cols = st.columns(2)
                 fila2_cols = st.columns(2)
-                
                 grid_cols = fila1_cols + fila2_cols
 
                 for col, franja in zip(grid_cols, franjas_a_mostrar):
                     with col:
                         data_row = datos_agregados_charts[datos_agregados_charts['Franja_Meta'] == franja]
                         if not data_row.empty:
-                            fig_gauge = charts_resultados.create_gauge_chart( # Usamos tu función
+                            fig_gauge = charts_resultados.create_gauge_chart(
                                 value=data_row['Cumplimiento_%'].iloc[0],
                                 meta=data_row['Meta_Total'].iloc[0],
                                 recaudo=data_row['Recaudo_Total'].iloc[0],
                                 faltante=data_row['Meta_Total'].iloc[0] - data_row['Recaudo_Total'].iloc[0],
-                                title=f"{franja}" # Título específico para cada gráfico
+                                title=f"{franja}"
                             )
                             st.plotly_chart(fig_gauge, use_container_width=True)
                         else:
                             st.warning(f"Sin datos para franja {franja}.")
             
-            # --- Columna Derecha: Gráfico grande para el total ---
+            # --- Columna Derecha: Gráfico Total ---
             with col_derecha:
                 st.markdown("<div style='height: 150px;'></div>", unsafe_allow_html=True)
                 total_recaudo_sin_anti = datos_agregados_charts['Recaudo_Sin_Anti_Total'].sum()
@@ -89,7 +86,7 @@ def render(tab3_data):
                 
                 titulo_grafico_total = f"T.R ({len(zonas_seleccionadas)} Zonas)"
 
-                fig_gauge_total = charts_resultados.create_gauge_chart( # Usamos tu función
+                fig_gauge_total = charts_resultados.create_gauge_chart(
                     value=cumplimiento_sin_anti,
                     meta=total_recaudo_meta,
                     recaudo=total_recaudo_sin_anti,
@@ -108,30 +105,40 @@ def render(tab3_data):
             st.markdown("---")
 
             for franja in franjas_a_mostrar:
-                st.subheader(f"Detalle para Franja: {franja}")
+                # 1. Filtramos PRIMERO para poder calcular totales antes de mostrar títulos
                 df_tabla_franja = df_tabla_base[df_tabla_base['Franja_Meta'] == franja].copy()
 
                 if df_tabla_franja.empty:
+                    st.subheader(f"Detalle para Franja: {franja}")
                     st.write("Sin datos para esta franja.")
                     st.markdown("---")
                     continue
                 
+                # 2. Calculamos el total de cuentas de esta franja
+                total_cuentas_franja = df_tabla_franja['Cant_Cuentas'].sum()
+
+                # 3. Mostramos Título y el Total SEPARADO como pediste
+                st.subheader(f"Detalle para Franja: {franja}")
+                # Usamos un markdown destacado o un st.metric pequeño para el total
+                st.markdown(f"#### 👥 Total Cuentas Asociadas: :blue[{total_cuentas_franja:,.0f}]")
+                
                 df_tabla_franja['Faltante ($)'] = df_tabla_franja['Meta_Total'] - df_tabla_franja['Recaudo_Total']
                 
-                # 1. AGREGAMOS EL RENAME PARA 'Recaudo_Meta_Total' (que es tu Meta_T.R_$)
+                # 4. Preparamos la tabla (Renombrar y Ordenar)
                 df_tabla_display = df_tabla_franja.rename(columns={
                     'Franja_Meta': 'Franja', 
                     'Meta_Total': 'Meta ($)', 
                     'Recaudo_Total': 'Recaudo ($)',
                     'Cumplimiento_%': 'Cumplimiento (%)', 
-                    'Regional_Cobro': 'Regional Cobro'
+                    'Regional_Cobro': 'Regional Cobro',
+                    'Cant_Cuentas': '# Cuentas' 
                 })
                 
-                # 2. AGREGAMOS LA COLUMNA AL ORDEN VISUAL
                 column_order = [
                     'Regional Cobro', 
                     'Zona', 
-                    'Franja', 
+                    'Franja',
+                    '# Cuentas', 
                     'Meta ($)', 
                     'Recaudo ($)', 
                     'Faltante ($)', 
@@ -139,11 +146,12 @@ def render(tab3_data):
                 ]
                 df_tabla_display = df_tabla_display[[col for col in column_order if col in df_tabla_display.columns]]
 
-                # 3. AGREGAMOS EL FORMATO DE MONEDA AL NUEVO CAMPO
+                # 5. Estilos
                 styled_df = df_tabla_display.style.map(
                     lambda x: charts_resultados.style_cumplimiento_bar(x, expected_compliance),
                     subset=['Cumplimiento (%)']
                 ).format({
+                    '# Cuentas': '{:,.0f}', 
                     'Meta ($)': '${:,.0f}', 
                     'Recaudo ($)': '${:,.0f}',
                     'Faltante ($)': '${:,.0f}', 
@@ -154,7 +162,6 @@ def render(tab3_data):
                 
                 html_table = styled_df.to_html()
 
-                # 2. Usamos st.markdown para renderizar el HTML con los estilos
                 if len(df_tabla_display) > 7:
                     st.markdown(
                         f'<div style="width: 100%; max-height: 350px; overflow-y: auto;">{html_table}</div>',
@@ -163,15 +170,13 @@ def render(tab3_data):
                 else:
                     st.markdown(html_table, unsafe_allow_html=True)
                 
+                # 6. Descarga Excel
                 df_for_excel = df_tabla_display.copy()
-            
-                # 2. Aplicamos el formato deseado a la columna 'Cumplimiento (%)'.
                 df_for_excel['Cumplimiento (%)'] = df_for_excel['Cumplimiento (%)'].apply(
                     lambda x: f"{x * 100:.2f}".replace('.', ',') + '%'
                 )
 
-                # 3. Pasamos el nuevo DataFrame formateado a la función de descarga.
-                charts_resultados.generate_excel_download_link( # Asumiendo que está disponible
+                charts_resultados.generate_excel_download_link(
                     df=df_for_excel,
                     filename=f"detalle_zonas_{franja.replace(' ', '_')}.xlsx",
                     button_label=f"📥 Descargar Datos de Franja {franja}"
@@ -182,36 +187,38 @@ def render(tab3_data):
             st.subheader("Totales Generales de Zonas Seleccionadas")
             total_meta = df_tabla_base['Meta_Total'].sum()
             total_recaudo = df_tabla_base['Recaudo_Total'].sum()
+            # Opcional: Total de cuentas general
+            total_cuentas_global = df_tabla_base['Cant_Cuentas'].sum()
             
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5) # Añadí una columna más para cuentas
             col1.metric("Meta Total", f"${total_meta:,.0f}")
             col2.metric("Recaudo Total", f"${total_recaudo:,.0f}")
             col3.metric("Faltante Total", f"${total_meta - total_recaudo:,.0f}")
-            col4.metric("Cumplimiento Total", f"{(total_recaudo / total_meta) if total_meta > 0 else 0:.2%}")
+            col4.metric("Cumplimiento", f"{(total_recaudo / total_meta) if total_meta > 0 else 0:.2%}")
+            col5.metric("Total Cuentas", f"{total_cuentas_global:,.0f}") # Métrica extra
     
-    # --- NUEVA SECCIÓN: DETALLE POR COBRADOR ---
+    # --- DETALLE POR COBRADOR ---
     st.markdown("---")
     st.header("Detalle para franja: TR")
 
     if df_resultados_cobrador is not None and not df_resultados_cobrador.empty:
         
-        # 1. RENOMBRAMIENTO: Cambiamos 'Meta ($)' por 'Meta T.R ($)'
         df_cobrador_display = df_resultados_cobrador.rename(columns={
-            'Meta_Total': 'Meta T.R ($)',      # <--- CAMBIO AQUÍ (Antes era 'Meta ($)')
+            'Meta_Total': 'Meta T.R ($)',      
             'Recaudo_Total': 'Recaudo ($)',
             'Cumplimiento_%': 'Cumplimiento (%)', 
-            'Regional_Cobro': 'Regional Cobro'
+            'Regional_Cobro': 'Regional Cobro',
+            'Cant_Cuentas': '# Cuentas' # Si quieres mostrar cuentas por cobrador también
         })
         
-        # 2. CÁLCULO FALTANTE: Usamos la nueva columna 'Meta T.R ($)' para la resta
         df_cobrador_display['Faltante ($)'] = df_cobrador_display['Meta T.R ($)'] - df_cobrador_display['Recaudo ($)']
         
-        # 3. ORDEN DE COLUMNAS: Actualizamos el nombre en la lista
         column_order_cobrador = [
             'Regional Cobro', 
             'Zona',
             'Cobrador', 
-            'Meta T.R ($)',      # <--- CAMBIO AQUÍ
+            '# Cuentas', # Agregado aquí también por si acaso
+            'Meta T.R ($)',      
             'Recaudo ($)', 
             'Faltante ($)', 
             'Cumplimiento (%)'
@@ -219,19 +226,18 @@ def render(tab3_data):
         
         df_cobrador_display = df_cobrador_display[[col for col in column_order_cobrador if col in df_cobrador_display.columns]]
 
-        # Ordenar 
         if 'Zona' in df_cobrador_display.columns:
              df_cobrador_display = df_cobrador_display.sort_values(by=['Zona', 'Cumplimiento (%)'], ascending=[True, False])
         else:
              df_cobrador_display = df_cobrador_display.sort_values(by='Cumplimiento (%)', ascending=False)
 
-        # 4. FORMATO: Actualizamos el diccionario de formato con el nuevo nombre
         expected_compliance, _, _ = charts_resultados.calculate_expected_compliance()
         styled_df_cobrador = df_cobrador_display.style.map(
             lambda x: charts_resultados.style_cumplimiento_bar(x, expected_compliance),
             subset=['Cumplimiento (%)']
         ).format({
-            'Meta T.R ($)': '${:,.0f}',  # <--- CAMBIO AQUÍ (Formato para la nueva columna)
+            '# Cuentas': '{:,.0f}',
+            'Meta T.R ($)': '${:,.0f}',  
             'Recaudo ($)': '${:,.0f}',
             'Faltante ($)': '${:,.0f}', 
             'Cumplimiento (%)': '{:.2%}'
@@ -243,7 +249,6 @@ def render(tab3_data):
 
         st.info("Tabla con el detalle de recaudo y Meta T.R por cada Cobrador (Acumulado).")
 
-        # Usamos st.markdown para renderizar el HTML con scroll si es necesario
         if len(df_cobrador_display) > 10:
             st.markdown(
                 f'<div style="width: 100%; max-height: 450px; overflow-y: auto;">{html_table_cobrador}</div>',
@@ -252,7 +257,6 @@ def render(tab3_data):
         else:
             st.markdown(html_table_cobrador, unsafe_allow_html=True)
             
-        # Preparar para descarga
         df_for_excel_cobrador = df_cobrador_display.copy()
         df_for_excel_cobrador['Cumplimiento (%)'] = df_for_excel_cobrador['Cumplimiento (%)'].apply(
             lambda x: f"{x * 100:.2f}".replace('.', ',') + '%'

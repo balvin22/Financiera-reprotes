@@ -1,4 +1,3 @@
-# data_processing.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,7 +9,6 @@ def prepare_tab1_data(df):
     """
     Toma el dataframe filtrado y realiza todas las agregaciones
     necesarias para los gráficos del Tab 1 de una sola vez.
-    El resultado se guarda en caché para un rendimiento máximo.
     """
     if df.empty:
         return {}
@@ -50,21 +48,32 @@ def prepare_tab1_data(df):
             agg_desembolso.sort_values('Año_Desembolso', inplace=True)
             agg_desembolso['Franja_Meta'] = pd.Categorical(agg_desembolso['Franja_Meta'], categories=ORDEN_FRANJAS, ordered=True)
 
-    # --- 4. Datos para: create_vigencia_sunburst_chart ---
+    # --- 4. Datos para: create_vigencia_sunburst_chart (OPTIMIZADO PARA TEXTOS) ---
     agg_vigencia = None
     if 'Fecha_Cuota_Vigente' in df.columns:
         df_vigencia_copy = df[['Fecha_Cuota_Vigente']].copy()
+        
+        # Intentamos extraer las fechas reales (lo que sea texto como "ANTICIPADO" será NaT)
         fechas_reales = pd.to_datetime(df_vigencia_copy['Fecha_Cuota_Vigente'], errors='coerce')
         
         df_vigencia_copy['Estado_Vigencia_Agrupado'] = 'VIGENTES'
-        df_vigencia_copy.loc[fechas_reales.isna(), 'Estado_Vigencia_Agrupado'] = df_vigencia_copy['Fecha_Cuota_Vigente']
+        
+        # Donde no hay fecha, colocamos el texto original ("VIGENCIA EXPIRADA", "ANTICIPADO")
+        mask_not_date = fechas_reales.isna()
+        df_vigencia_copy.loc[mask_not_date, 'Estado_Vigencia_Agrupado'] = df_vigencia_copy.loc[mask_not_date, 'Fecha_Cuota_Vigente']
+        
+        # Limpiamos la basura que deja la conversión a texto puro en Parquet
+        df_vigencia_copy['Estado_Vigencia_Agrupado'] = df_vigencia_copy['Estado_Vigencia_Agrupado'].replace(
+            {'': 'SIN ESTADO', 'nan': 'SIN ESTADO', 'NaN': 'SIN ESTADO', 'None': 'SIN ESTADO'}
+        )
 
         df_vigencia_copy['Sub_Estado_Vigencia'] = ''
         vigentes_mask = df_vigencia_copy['Estado_Vigencia_Agrupado'] == 'VIGENTES'
     
         if vigentes_mask.any():
             fechas_vigentes = fechas_reales[vigentes_mask]
-            subdivision_labels = fechas_vigentes.dt.day.apply(lambda d: f"Día {d}")
+            # Extraemos el día para los vigentes
+            subdivision_labels = fechas_vigentes.dt.day.apply(lambda d: f"Día {int(d)}" if pd.notna(d) else "")
             df_vigencia_copy.loc[vigentes_mask, 'Sub_Estado_Vigencia'] = subdivision_labels
 
         agg_vigencia = df_vigencia_copy.groupby(['Estado_Vigencia_Agrupado', 'Sub_Estado_Vigencia']).size().reset_index(name='count')
@@ -75,195 +84,138 @@ def prepare_tab1_data(df):
         "desembolso": agg_desembolso,
         "vigencia": agg_vigencia,
     }
-    
+
 @st.cache_data
 def prepare_tab2_data(df_cartera, df_novedades):
     """
-    Prepara y cachea todos los datos necesarios para los gráficos y la tabla del Tab 2.
+    Prepara datos para el Tab 2 con optimización de merge.
     """
     if df_cartera.empty:
         return {}
+    
+    # Filtro inicial para evitar datos ruidosos
     df_cartera = df_cartera[df_cartera['Valor_Cuota_Vigente'] != 'ANTICIPADO'].copy()
     if df_cartera.empty:
         return {}
 
+    # Lógica de estados base
     df_cartera['Estado_Pago'] = np.where(df_cartera['Total_Recaudo'] > 50000, 'PAGO', 'SIN PAGO')
-    cargos_unicos_por_cliente = df_novedades[['Cedula_Cliente', 'Cargo_Usuario']].drop_duplicates()
+    df_cartera['Estado_Gestion'] = np.where(df_cartera['Cantidad_Novedades'] > 0, 'CON GESTIÓN', 'SIN GESTIÓN')
+
+    # Datos para Donut
     agg_donut = df_cartera['Estado_Pago'].value_counts()
 
-    df_cartera['Estado_Gestion'] = np.where(df_cartera['Cantidad_Novedades'] > 0, 'CON GESTIÓN', 'SIN GESTIÓN')
-    cargos_unicos_por_cliente = df_novedades[['Cedula_Cliente', 'Cargo_Usuario']].drop_duplicates()
+    # Merge para Sunburst inicial (Gestión vs Cargos)
+    cargos_unicos_por_cliente = df_novedades[['Cedula_Cliente', 'Cargo_Usuario']].drop_duplicates() if not df_novedades.empty else pd.DataFrame(columns=['Cedula_Cliente', 'Cargo_Usuario'])
     df_merged = pd.merge(df_cartera, cargos_unicos_por_cliente, on='Cedula_Cliente', how='left')
-    df_merged['Cargo_Usuario'] = df_merged['Cargo_Usuario'].fillna('')
-    
+    df_merged['Cargo_Usuario'] = df_merged['Cargo_Usuario'].fillna('SIN CARGO')
+
     grouped_sunburst_inicial = df_merged.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
     grouped_sunburst_inicial = grouped_sunburst_inicial[~((grouped_sunburst_inicial['Estado_Gestion'] == 'CON GESTIÓN') & (grouped_sunburst_inicial['Cargo_Usuario'] == ''))]
+    
     conteo_gestion_inicial = df_merged['Estado_Gestion'].value_counts()
+
+    # Datos Rodamiento
     agg_rodamiento = None
-    if 'Rodamiento' in df_cartera.columns and 'Estado_Gestion' in df_cartera.columns:
+    if 'Rodamiento' in df_cartera.columns:
         agg_rodamiento = df_cartera.groupby(['Rodamiento', 'Estado_Gestion']).size().reset_index(name='Número de Cuentas')
-        
+
+    # Detalle de Pagos
     df_pago = df_merged[df_merged['Estado_Pago'] == 'PAGO']
     df_sin_pago = df_merged[df_merged['Estado_Pago'] == 'SIN PAGO']
 
     grouped_detalle_pago = df_pago.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
-    conteo_detalle_pago = df_pago['Estado_Gestion'].value_counts()
-    
     grouped_detalle_sin_pago = df_sin_pago.groupby(['Estado_Gestion', 'Cargo_Usuario']).size().reset_index(name='Cantidad')
-    conteo_detalle_sin_pago = df_sin_pago['Estado_Gestion'].value_counts()
 
-    # --- INICIO DE LA MODIFICACIÓN ---
+    # Lógica de Tabla Detallada (Optimización de Memoria)
     if not df_novedades.empty:
-        # 1. Calcular el conteo de novedades por cargo (como antes)
-        novedades_por_cargo_cliente = df_novedades.groupby(
-            ['Cedula_Cliente', 'Cargo_Usuario']
-        ).size().reset_index(name='Novedades_Por_Cargo')
+        novedades_por_cargo = df_novedades.groupby(['Cedula_Cliente', 'Cargo_Usuario']).size().reset_index(name='Novedades_Por_Cargo')
         
-        # 2. Unir el conteo a df_merged (que está a nivel Credito/Cargo)
-        df_con_conteo = pd.merge(
-            df_merged,
-            novedades_por_cargo_cliente,
-            on=['Cedula_Cliente', 'Cargo_Usuario'],
+        columnas_clave = [
+            'Cedula_Cliente', 'Empresa', 'Credito', 'Nombre_Cliente', 'Celular', 'Nombre_Ciudad', 'Zona',
+            'Dias_Atraso_Final', 'Total_Recaudo', 'Valor_Vencido', 'Codeudor1', 'Nombre_Codeudor1', 
+            'Telefono_Codeudor1','Codeudor2', 'Nombre_Codeudor2','Telefono_Codeudor2', 'Meta_$',
+            'Estado_Pago', 'Estado_Gestion', 'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente'
+        ]
+        cols_finales_c = [c for c in columnas_clave if c in df_cartera.columns]
+        
+        df_base_reducida = pd.merge(df_cartera[cols_finales_c], novedades_por_cargo, on='Cedula_Cliente', how='left')
+        
+        df_para_tabla = pd.merge(
+            df_base_reducida, 
+            df_novedades[['Cedula_Cliente', 'Cargo_Usuario', 'Novedad', 'Tipo_Novedad', 'Nombre_Usuario']], 
+            on=['Cedula_Cliente', 'Cargo_Usuario'], 
             how='left'
         )
-        df_con_conteo['Novedades_Por_Cargo'] = df_con_conteo['Novedades_Por_Cargo'].fillna(0).astype(int)
-
-        # 3. Preparar las columnas de detalle de novedades
-        cols_detalle = ['Cedula_Cliente', 'Cargo_Usuario']
-    
-        # ... (lógica de 'Novedad' y 'Tipo_Novedad' igual) ...
-        cols_detalle.append('Novedad')
-        cols_detalle.append('Tipo_Novedad')
-
-        # --- OPTIMIZACIÓN AQUÍ ---
-        # Definimos qué columnas del CREDITO (df_con_conteo) realmente nos interesan para la tabla.
-        # Así evitamos arrastrar 40 columnas 'basura' que consumen memoria al multiplicarse.
-        columnas_clave_credito = [
-            'Cedula_Cliente', 'Cargo_Usuario', # Llaves obligatorias
-            'Empresa', 'Credito', 'Nombre_Cliente', 'Celular', 
-            'Dias_Atraso_Final', 'Total_Recaudo', 'Valor_Vencido', 
-            'Estado_Pago', 'Estado_Gestion', 'Novedades_Por_Cargo',
-            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente' 
-            # Agrega aquí solo lo que vayas a mostrar en el st.dataframe
-        ]
-        
-        # Filtramos df_con_conteo ANTES del merge explosivo
-        # Usamos intersection para evitar errores si alguna columna no existe
-        cols_a_usar = [c for c in columnas_clave_credito if c in df_con_conteo.columns]
-        df_base_reducida = df_con_conteo[cols_a_usar]
-
-        # 4. Unir los detalles (Ahora el merge es más ligero)
-        df_para_tabla = pd.merge(
-            df_base_reducida,  # Usamos la versión "flaca"
-            df_novedades[cols_detalle], 
-            on=['Cedula_Cliente', 'Cargo_Usuario'],
-            how='left' 
-        )
-        
-        df_para_tabla['Novedad'] = df_para_tabla['Novedad'].fillna('')
-        df_para_tabla['Tipo_Novedad'] = df_para_tabla['Tipo_Novedad'].fillna('')
-
+        for col in ['Novedad', 'Tipo_Novedad', 'Nombre_Usuario']:
+            if col in df_para_tabla.columns:
+                df_para_tabla[col] = df_para_tabla[col].fillna('')
     else:
-    
         df_para_tabla = df_merged.copy()
         df_para_tabla['Novedades_Por_Cargo'] = 0
         df_para_tabla['Novedad'] = ''
         df_para_tabla['Tipo_Novedad'] = ''
-    
+        df_para_tabla['Nombre_Usuario'] = ''
 
     return {
         "donut_data": agg_donut,
         "sunburst_initial_grouped": grouped_sunburst_inicial,
         "sunburst_initial_counts": conteo_gestion_inicial,
         "rodamiento_data": agg_rodamiento,
-        "detalle_pago": (grouped_detalle_pago, conteo_detalle_pago),
-        "detalle_sin_pago": (grouped_detalle_sin_pago, conteo_detalle_sin_pago),
+        "detalle_pago": (grouped_detalle_pago, df_pago['Estado_Gestion'].value_counts()),
+        "detalle_sin_pago": (grouped_detalle_sin_pago, df_sin_pago['Estado_Gestion'].value_counts()),
         "processed_cartera": df_cartera,
         "processed_data_merged": df_merged, 
-        "data_para_tabla": df_para_tabla # Esta es la tabla ahora expandida
+        "data_para_tabla": df_para_tabla 
     }
-
 
 @st.cache_data
 def prepare_tab3_data(df):
     """      
-    Toma el dataframe filtrado globalmente y realiza la agregación principal
-    por Zona y Franja_Meta y ahora por Cobrador para el Tab de Resultados.
+    Agregación principal por Zona y Cobrador para Resultados.
     """
-
     franjas_a_usar = ['1 A 30', '31 A 90', '91 A 180', '181 A 360']    
-    df_para_grupo = df[df['Franja_Meta'].isin(franjas_a_usar)]
-     
-    zonas_a_excluir = ['CL1', 'CL2', 'CL3', 'CL4']
-    df_para_grupo = df_para_grupo[~df_para_grupo['Zona'].isin(zonas_a_excluir)]
+    df_para_grupo = df[df['Franja_Meta'].isin(franjas_a_usar)].copy()
+    df_para_grupo = df_para_grupo[~df_para_grupo['Zona'].isin(['CL1', 'CL2', 'CL3', 'CL4'])]
 
     if df_para_grupo.empty:
         return {"resultados_zona": pd.DataFrame(), "resultados_cobrador": pd.DataFrame()}
 
-    # --- 1. Preparación de columnas requeridas ---
-    required_cols = {
-        'Meta_$': 0,
-        'Recaudo_Meta': 0,  
-        'Total_Recaudo_Sin_Anti': 0,
-        'Meta_T.R_$': 0
-    }
+    # Tipado numérico
+    required_cols = {'Meta_$': 0, 'Recaudo_Meta': 0, 'Total_Recaudo_Sin_Anti': 0, 'Meta_T.R_$': 0}
     for col, default in required_cols.items():
-        if col not in df_para_grupo.columns:
-            df_para_grupo[col] = default
-        df_para_grupo[col] = pd.to_numeric(df_para_grupo[col], errors='coerce').fillna(0)
-     
-    # --- 2. Agregación Principal por Zona y Franja_Meta (para gráficos/tablas existentes) ---
-    group_by_cols_zona = ['Zona', 'Franja_Meta']
-    if 'Regional_Cobro' in df_para_grupo.columns:
-        group_by_cols_zona.insert(0, 'Regional_Cobro')
+        if col in df_para_grupo.columns:
+            df_para_grupo[col] = pd.to_numeric(df_para_grupo[col], errors='coerce').fillna(0)
 
-    resultados_zona = df_para_grupo.groupby(group_by_cols_zona).agg(
+    # Agregación por Zona
+    gb_zona = ['Regional_Cobro', 'Zona', 'Franja_Meta'] if 'Regional_Cobro' in df_para_grupo.columns else ['Zona', 'Franja_Meta']
+    resultados_zona = df_para_grupo.groupby(gb_zona).agg(
         Meta_Total=('Meta_$', 'sum'),
         Recaudo_Total=('Recaudo_Meta', 'sum'), 
         Recaudo_Sin_Anti_Total=('Total_Recaudo_Sin_Anti', 'sum'),
         Recaudo_Meta_Total=('Meta_T.R_$', 'sum'),
-        Cant_Cuentas=('Zona', 'size')  # <--- NUEVO: Cuenta la cantidad de registros (cuentas)
+        Cant_Cuentas=('Zona', 'size')
     ).reset_index()
 
-    resultados_zona['Cumplimiento_%'] = 0.0
-    mask_meta_valida_zona = resultados_zona['Meta_Total'] > 0
-    resultados_zona.loc[mask_meta_valida_zona, 'Cumplimiento_%'] = (
-        resultados_zona.loc[mask_meta_valida_zona, 'Recaudo_Total'] / resultados_zona.loc[mask_meta_valida_zona, 'Meta_Total']
-    )
-     
-    # --- 3. NUEVA Agregación por Cobrador ---
-    group_by_cols_cobrador = ['Zona', 'Cobrador'] 
-     
-    if 'Regional_Cobro' in df_para_grupo.columns:
-         group_by_cols_cobrador.insert(0, 'Regional_Cobro')
-     
-    # Eliminamos filas con cobrador vacío
-    df_cobrador = df_para_grupo[df_para_grupo['Cobrador'].notna() & (df_para_grupo['Cobrador'] != '')].copy()
+    resultados_zona['Cumplimiento_%'] = np.where(resultados_zona['Meta_Total'] > 0, resultados_zona['Recaudo_Total'] / resultados_zona['Meta_Total'], 0.0)
 
-    resultados_cobrador = df_cobrador.groupby(group_by_cols_cobrador).agg(
+    # Agregación por Cobrador
+    df_cobrador = df_para_grupo[df_para_grupo['Cobrador'].notna() & (df_para_grupo['Cobrador'] != '')].copy()
+    gb_cobrador = ['Regional_Cobro', 'Zona', 'Cobrador'] if 'Regional_Cobro' in df_para_grupo.columns else ['Zona', 'Cobrador']
+    
+    resultados_cobrador = df_cobrador.groupby(gb_cobrador).agg(
         Meta_Total=('Meta_T.R_$', 'sum'),              
         Recaudo_Total=('Total_Recaudo_Sin_Anti', 'sum'),
-        Cant_Cuentas=('Cobrador', 'size') # <--- También lo agregué aquí por si lo necesitas luego
+        Cant_Cuentas=('Cobrador', 'size')
     ).reset_index()
-     
-    # Cálculo del porcentaje de cumplimiento
-    resultados_cobrador['Cumplimiento_%'] = 0.0
-    mask_meta_valida_cobrador = resultados_cobrador['Meta_Total'] > 0
-    resultados_cobrador.loc[mask_meta_valida_cobrador, 'Cumplimiento_%'] = (
-        resultados_cobrador.loc[mask_meta_valida_cobrador, 'Recaudo_Total'] / resultados_cobrador.loc[mask_meta_valida_cobrador, 'Meta_Total']
-    )
+    
+    resultados_cobrador['Cumplimiento_%'] = np.where(resultados_cobrador['Meta_Total'] > 0, resultados_cobrador['Recaudo_Total'] / resultados_cobrador['Meta_Total'], 0.0)
 
-    return {
-        "resultados_zona": resultados_zona, 
-        "resultados_cobrador": resultados_cobrador
-    }
+    return {"resultados_zona": resultados_zona, "resultados_cobrador": resultados_cobrador}
 
 @st.cache_data
 def prepare_tab4_data(df_cartera, df_novedades):
-    return {
-        "cartera_para_mostrar": df_cartera,
-        "novedades_para_mostrar": df_novedades
-    }
+    return {"cartera_para_mostrar": df_cartera, "novedades_para_mostrar": df_novedades}
 
 @st.cache_data
 def prepare_tab5_data(df_cartera):
@@ -271,20 +223,12 @@ def prepare_tab5_data(df_cartera):
     numeric_cols = ['Total_Cuotas', 'Cuotas_Pagadas', 'Dias_Atraso_Final']
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors='coerce')
+    
     df.dropna(subset=numeric_cols, inplace=True)
-    df_potenciales = df[df['Dias_Atraso_Final'] <= 30].copy()
-    df_potenciales = df_potenciales[df_potenciales['Total_Cuotas'] >= 6].copy()
+    df_potenciales = df[(df['Dias_Atraso_Final'] <= 30) & (df['Total_Cuotas'] >= 6)].copy()
     df_potenciales['Cuotas_Restantes'] = df_potenciales['Total_Cuotas'] - df_potenciales['Cuotas_Pagadas']
-    condicion_A = (
-        (df_potenciales['Total_Cuotas'].between(6, 8)) &
-        (df_potenciales['Cuotas_Restantes'].between(1, 2))
-    )
-    condicion_B = (
-        (df_potenciales['Total_Cuotas'] > 8) &
-        (df_potenciales['Cuotas_Restantes'].between(1, 4))
-    )
-    df_final = df_potenciales[condicion_A | condicion_B]
-    return {
-        "potenciales_retanqueo": df_final
-    }
-
+    
+    cond_A = (df_potenciales['Total_Cuotas'].between(6, 8)) & (df_potenciales['Cuotas_Restantes'].between(1, 2))
+    cond_B = (df_potenciales['Total_Cuotas'] > 8) & (df_potenciales['Cuotas_Restantes'].between(1, 4))
+    
+    return {"potenciales_retanqueo": df_potenciales[cond_A | cond_B]}

@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import charts_rodamientos
 
 def render(tab2_data):
@@ -131,7 +132,14 @@ def render(tab2_data):
             # --- FILTRO 3: Cargos ---
             with col_f3:
                 st.write("**Cargo Usuario**") 
-                cargos_disponibles = sorted(df_completo['Cargo_Usuario'].unique())
+                
+                # --- CORRECCIÓN AQUÍ ---
+                # 1. Obtenemos los valores únicos
+                cargos_crudos = df_completo['Cargo_Usuario'].unique()
+                # 2. Convertimos todo a string y filtramos los nulos/nan
+                cargos_limpios = [str(c) for c in cargos_crudos if pd.notna(c) and str(c).strip().lower() != 'nan']
+                # 3. Ordenamos de forma segura (todo es texto)
+                cargos_disponibles = sorted(list(set(cargos_limpios)))
                 
                 with st.popover("Seleccionar Cargos...", use_container_width=True):
                     if st.button("Todos", use_container_width=True, key="select_all_cargos"):

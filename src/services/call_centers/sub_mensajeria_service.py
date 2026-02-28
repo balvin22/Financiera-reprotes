@@ -2,111 +2,99 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 
-# --- Función Ayudante ---
 def _normalize_telefonos(series: pd.Series) -> pd.Series:
-    """Normaliza una serie de teléfonos a string, quitando nulos y '.0'."""
+    """Normaliza una serie de teléfonos a string, quitando nulos y el molesto '.0' de Pandas."""
     return series.dropna().astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
 
-# --- Función Principal ---
 def process_mensajeria_funnel(df_mensajeria: pd.DataFrame, df_novedades: pd.DataFrame, df_cartera: pd.DataFrame) -> dict:
-    """Procesa el embudo de conversión usando la nueva columna 'Tipo_Respuesta_Agente'."""
-    
-    if df_mensajeria.empty or df_novedades.empty or df_cartera.empty:
+    if df_mensajeria.empty:
         return {"df_funnel_mensajeria": pd.DataFrame(), "df_efectividad_mensajeria": pd.DataFrame()}
 
     try:
-        df_mensajeria_limpio = df_mensajeria.copy()
-        total_mensajes = len(df_mensajeria_limpio)
+        total_mensajes = len(df_mensajeria)
         
-        # --- Paso 1: Identificar Conversaciones con la nueva lógica ---
-        if 'Tipo_Respuesta_Agente' in df_mensajeria_limpio.columns:
-            # Limpiamos la columna para evitar errores de formato
-            df_mensajeria_limpio['Tipo_Respuesta_Agente'] = df_mensajeria_limpio['Tipo_Respuesta_Agente'].astype(str).str.lower().str.strip()
-            
-            # Nueva lógica: 'text' o 'audio' implica conversación
-            df_mensajeria_limpio['Es_Conversacion'] = np.where(
-                df_mensajeria_limpio['Tipo_Respuesta_Agente'].isin(['text', 'audio']), 1, 0
-            )
+        if 'Tipo_Respuesta_Agente' in df_mensajeria.columns:
+            es_conversacion = df_mensajeria['Tipo_Respuesta_Agente'].astype(str).str.lower().str.strip().isin(['text', 'audio'])
         else:
-            st.error("❌ La columna 'Tipo_Respuesta_Agente' no existe en el reporte de mensajería.")
-            df_mensajeria_limpio['Es_Conversacion'] = 0
+            es_conversacion = pd.Series([False] * total_mensajes, index=df_mensajeria.index)
 
-        df_conversaciones = df_mensajeria_limpio[df_mensajeria_limpio['Es_Conversacion'] == 1].copy()
+        df_conversaciones = df_mensajeria[es_conversacion].copy()
         total_conversaciones = len(df_conversaciones)
 
-        # --- Paso 2: Efectividad por Call Center ---
         df_efectividad_mensajeria = pd.DataFrame()
-        if 'Call_Center' in df_mensajeria_limpio.columns:
-            agg_msgs = df_mensajeria_limpio.groupby('Call_Center').agg(
-                Total_Entregados=('Call_Center', 'size'),
-                Total_Conversaciones=('Es_Conversacion', 'sum')
-            ).reset_index()
+        if 'Call_Center' in df_mensajeria.columns:
+            agg_msgs = df_mensajeria.groupby('Call_Center', observed=True).size().reset_index(name='Total_Entregados')
             
-            agg_msgs['Efectividad'] = np.where(
-                agg_msgs['Total_Entregados'] > 0, 
-                agg_msgs['Total_Conversaciones'] / agg_msgs['Total_Entregados'], 
-                0
-            )
+            if total_conversaciones > 0:
+                conv_counts = df_conversaciones.groupby('Call_Center', observed=True).size().reset_index(name='Total_Conversaciones')
+                agg_msgs = agg_msgs.merge(conv_counts, on='Call_Center', how='left')
+                agg_msgs['Total_Conversaciones'] = agg_msgs['Total_Conversaciones'].fillna(0)
+            else:
+                agg_msgs['Total_Conversaciones'] = 0
+                
+            agg_msgs['Efectividad'] = np.where(agg_msgs['Total_Entregados'] > 0, agg_msgs['Total_Conversaciones'] / agg_msgs['Total_Entregados'], 0)
             df_efectividad_mensajeria = agg_msgs.sort_values(by='Efectividad', ascending=False)
 
-        # --- Paso 3: Gestión en Sistema (Cruce por Teléfonos) ---
-        total_gestion_sistema = 0
-        df_gestion_sistema = pd.DataFrame()
+        total_gestion_sistema, total_clientes_pago = 0, 0
         
-        if not df_conversaciones.empty and 'Numero_Telefono' in df_conversaciones.columns:
-            # Extraer set de teléfonos únicos de novedades (Celular + Teléfono)
-            telefonos_novedades = set(_normalize_telefonos(df_novedades.get('Telefono_Cliente', pd.Series(dtype=str))))
-            telefonos_novedades.update(_normalize_telefonos(df_novedades.get('Celular_Cliente', pd.Series(dtype=str))))
+        # --- CRUCE 1: Gestión en Sistema ---
+        if not df_conversaciones.empty and not df_novedades.empty and 'Numero_Telefono' in df_conversaciones.columns:
+            tel_nov = set()
+            if 'Telefono_Cliente' in df_novedades.columns:
+                tel_nov.update(_normalize_telefonos(df_novedades['Telefono_Cliente']))
+            if 'Celular_Cliente' in df_novedades.columns:
+                tel_nov.update(_normalize_telefonos(df_novedades['Celular_Cliente']))
             
             df_conversaciones['Numero_Telefono_Norm'] = _normalize_telefonos(df_conversaciones['Numero_Telefono'])
-            df_gestion_sistema = df_conversaciones[df_conversaciones['Numero_Telefono_Norm'].isin(telefonos_novedades)].copy()
+            
+            df_gestion_sistema = df_conversaciones[df_conversaciones['Numero_Telefono_Norm'].isin(tel_nov)]
             total_gestion_sistema = len(df_gestion_sistema)
 
-        # --- Paso 4: Clientes con Pago (Cruce por Cédula) ---
-        total_clientes_pago = 0
-        if not df_gestion_sistema.empty:
-            # Usar la lógica de 'Total_Recaudo' o un flag de estado si lo tienes
-            # Según tu código anterior, buscamos 'Estado_Pago' == 'PAGO'
+        # --- CRUCE 2: Clientes con Pago (CORREGIDO) ---
+        if total_gestion_sistema > 0 and not df_cartera.empty:
+            # 1. Extraemos las cédulas con pago de la cartera y LAS LIMPIAMOS
             if 'Estado_Pago' in df_cartera.columns:
-                cedulas_con_pago = set(df_cartera[df_cartera['Estado_Pago'] == 'PAGO']['Cedula_Cliente'].astype(str))
+                df_pagos = df_cartera[df_cartera['Estado_Pago'] == 'PAGO']
+            elif 'Total_Recaudo' in df_cartera.columns:
+                df_pagos = df_cartera[pd.to_numeric(df_cartera['Total_Recaudo'], errors='coerce').fillna(0) > 0]
             else:
-                # Si no existe 'Estado_Pago', podrías usar Total_Recaudo > 0 como fallback
-                cedulas_con_pago = set(df_cartera[df_cartera['Total_Recaudo'] > 0]['Cedula_Cliente'].astype(str))
+                df_pagos = pd.DataFrame()
+
+            # Aseguramos que la cédula sea un texto limpio sin ".0"
+            if not df_pagos.empty and 'Cedula_Cliente' in df_pagos.columns:
+                cedulas_con_pago = set(df_pagos['Cedula_Cliente'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip())
+            else:
+                cedulas_con_pago = set()
             
-            # Mapeo de Teléfono -> Cédula usando el archivo de Novedades
-            df_novedades_map = df_novedades.dropna(subset=['Cedula_Cliente']).copy()
+            # 2. Mapeo Robusto de Teléfono -> Cédula (Sin usar to_dict)
             map_tel_a_cedula = {}
+            df_novedades_clean = df_novedades.dropna(subset=['Cedula_Cliente']).copy()
+            df_novedades_clean['Cedula_Cliente'] = df_novedades_clean['Cedula_Cliente'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             
-            for col_tel in ['Telefono_Cliente', 'Celular_Cliente']:
-                if col_tel in df_novedades_map.columns:
-                    df_novedades_map['tmp_tel'] = _normalize_telefonos(df_novedades_map[col_tel])
-                    map_tel_a_cedula.update(df_novedades_map.set_index('tmp_tel')['Cedula_Cliente'].astype(str).to_dict())
+            for col in ['Telefono_Cliente', 'Celular_Cliente']:
+                if col in df_novedades_clean.columns:
+                    valid_rows = df_novedades_clean.dropna(subset=[col])
+                    telefonos_norm = _normalize_telefonos(valid_rows[col])
+                    cedulas_norm = valid_rows['Cedula_Cliente']
+                    
+                    # Emparejamos uno a uno evitando nulos
+                    for tel, ced in zip(telefonos_norm, cedulas_norm):
+                        if tel and tel != 'nan':
+                            map_tel_a_cedula[tel] = ced
 
-            df_gestion_sistema['Cedula_Mapeada'] = df_gestion_sistema['Numero_Telefono_Norm'].map(map_tel_a_cedula)
-            total_clientes_pago = df_gestion_sistema['Cedula_Mapeada'].isin(cedulas_con_pago).sum()
+            # 3. Cruzamos e identificamos pagos
+            cedulas_gestionadas = df_gestion_sistema['Numero_Telefono_Norm'].map(map_tel_a_cedula)
+            # Quitamos los nulos del mapeo antes de comparar
+            cedulas_gestionadas_limpias = cedulas_gestionadas.dropna()
+            total_clientes_pago = cedulas_gestionadas_limpias.isin(cedulas_con_pago).sum()
 
-        # Construcción del DataFrame del Funnel
-        data_funnel = {
-            'Etapa': [
-                'Mensajes Entregados', 
-                'Conversaciones', 
-                'Gestión en Sistema',  
-                'Clientes con Pago'    
-            ],
-            'Cantidad': [
-                total_mensajes, 
-                total_conversaciones, 
-                total_gestion_sistema, 
-                total_clientes_pago
-            ]
-        }
-        df_funnel_mensajeria = pd.DataFrame(data_funnel)
+        df_funnel_mensajeria = pd.DataFrame({
+            'Etapa': ['Mensajes Entregados', 'Conversaciones', 'Gestión en Sistema', 'Clientes con Pago'],
+            'Cantidad': [total_mensajes, total_conversaciones, total_gestion_sistema, total_clientes_pago]
+        })
 
-        return {
-            "df_funnel_mensajeria": df_funnel_mensajeria,
-            "df_efectividad_mensajeria": df_efectividad_mensajeria
-        }
+        return {"df_funnel_mensajeria": df_funnel_mensajeria, "df_efectividad_mensajeria": df_efectividad_mensajeria}
 
     except Exception as e:
-        st.error(f"Error al procesar el embudo de mensajería: {e}")
+        st.error(f"Error procesando la data de mensajería: {str(e)}")
         return {"df_funnel_mensajeria": pd.DataFrame(), "df_efectividad_mensajeria": pd.DataFrame()}

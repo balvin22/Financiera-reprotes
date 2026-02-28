@@ -219,16 +219,43 @@ def render(tab6_data, charts_resultados, alerts):
                 label_visibility="collapsed"
             )
         
+        # --- TABLA INTERACTIVA ---
         if not df_tabla.empty:
             if cols_seleccionadas:
-                st.data_editor(
+                st.write("💡 **Tip:** Haz clic en una fila para ver el historial completo de novedades de ese cliente.")
+                
+                # Reemplazamos st.data_editor por un dataframe interactivo
+                event = st.dataframe(
                     df_tabla[cols_seleccionadas], 
                     use_container_width=True, 
                     hide_index=True, 
-                    disabled=True, 
-                    key="editor_detalle_call",
-                    height=400 # Altura controlada
+                    selection_mode="single-row", # Permite seleccionar una fila
+                    on_select="rerun",           # Recarga la interfaz al hacer clic
+                    key="tabla_detalle_call",
+                    height=300
                 )
+                
+                # --- LÓGICA DE DETALLE (SUB-TABLA DE NOVEDADES) ---
+                if len(event.selection.rows) > 0:
+                    row_idx = event.selection.rows[0]
+                    cedula_sel = str(df_tabla.iloc[row_idx]['Cedula_Cliente']).strip()
+                    nombre_sel = df_tabla.iloc[row_idx].get('Nombre_Cliente', 'Cliente')
+                    
+                    with st.container(border=True):
+                        st.markdown(f"#### 📝 Historial de Novedades: {nombre_sel}")
+                        
+                        df_nov_crudas = tab6_data.get("novedades_crudas", pd.DataFrame())
+                        if not df_nov_crudas.empty:
+                            # Filtramos las novedades asociadas a esa cédula
+                            df_nov_cliente = df_nov_crudas[df_nov_crudas['Cedula_Cliente'].astype(str).str.strip() == cedula_sel]
+                            
+                            if not df_nov_cliente.empty:
+                                cols_mostrar = [c for c in ['Fecha_Novedad', 'Tipo_Novedad', 'Novedad', 'Nombre_Usuario', 'Cargo_Usuario'] if c in df_nov_cliente.columns]
+                                st.dataframe(df_nov_cliente[cols_mostrar], use_container_width=True, hide_index=True)
+                            else:
+                                st.info("No hay registro de novedades adicionales para este cliente en el archivo actual.")
+                        else:
+                            st.info("Archivo de novedades no disponible.")
             else:
                 st.warning("Selecciona al menos una columna.")
         else:

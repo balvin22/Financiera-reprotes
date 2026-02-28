@@ -37,39 +37,29 @@ def render(llamadas_stats, df_grafico_llamadas, df_llamadas_filtradas, df_efecti
     st.markdown("---")
     
     st.markdown("#### Tendencia de Llamadas Diarias (Días Hábiles)")
-    opciones_filtro = ['CON RESPUESTA', 'SIN RESPUESTA']
     
-    # 1. Crear el filtro Popover
-    with st.popover("Filtrar por tipo de respuesta...", use_container_width=True):
-        if st.button("Todas", use_container_width=True, key="select_all_tendencia_llamadas"):
-            for opt in opciones_filtro: st.session_state[f"tendencia_call_{opt}"] = True
-        if st.button("Ninguna", use_container_width=True, key="deselect_all_tendencia_llamadas"):
-            for opt in opciones_filtro: st.session_state[f"tendencia_call_{opt}"] = False
-        st.markdown("---")
+    # --- NUEVO DISEÑO ELEGANTE CON TOGGLES (INTERRUPTORES) ---
+    st.markdown("<p style='font-size: 14px; color: #666; margin-bottom: 5px;'>Filtra las líneas de la gráfica:</p>", unsafe_allow_html=True)
+    
+    # Columnas estrechas para que queden bonitos y juntos
+    col_t1, col_t2, _ = st.columns([1.5, 1.5, 7]) 
+    
+    with col_t1:
+        mostrar_con = st.toggle("✅ Con Respuesta", value=True)
+    with col_t2:
+        mostrar_sin = st.toggle("❌ Sin Respuesta", value=True)
         
-        for opt in opciones_filtro:
-            # Por defecto, todo está seleccionado (True) para cargar "TODAS"
-            if f"tendencia_call_{opt}" not in st.session_state: 
-                st.session_state[f"tendencia_call_{opt}"] = True
-            st.checkbox(opt, key=f"tendencia_call_{opt}")
-            
-    # 2. Recolectar las selecciones
-    selected_filtros = [opt for opt in opciones_filtro if st.session_state.get(f"tendencia_call_{opt}", True)]
-    
-    # 3. Mostrar un resumen de la selección
-    if len(selected_filtros) == len(opciones_filtro):
-        st.caption("Mostrando: TODAS")
-    elif not selected_filtros:
-        st.caption("Mostrando: NINGUNA")
-    else:
-        st.caption(f"Mostrando: {', '.join(selected_filtros)}")
+    # Armamos la lista de filtros según lo que esté encendido
+    selected_filtros = []
+    if mostrar_con: selected_filtros.append('CON RESPUESTA')
+    if mostrar_sin: selected_filtros.append('SIN RESPUESTA')
 
-    # 4. Generar y mostrar el gráfico (pasando el umbral)
+    # Generar y mostrar el gráfico con doble línea
     if not df_llamadas_por_dia.empty:
         fig_area_llamadas = charts_call_center.create_llamadas_por_dia_area_chart(
             df_llamadas_dia=df_llamadas_por_dia,
             filtros_respuesta=selected_filtros,
-            alerta_umbral=alerta_umbral # Pasa el umbral al gráfico
+            alerta_umbral=alerta_umbral 
         )
         if fig_area_llamadas:
             st.plotly_chart(fig_area_llamadas, use_container_width=True)
@@ -77,4 +67,3 @@ def render(llamadas_stats, df_grafico_llamadas, df_llamadas_filtradas, df_efecti
         st.info("No hay datos disponibles para generar el gráfico de tendencia de llamadas.")
     
     st.markdown("---")
-    

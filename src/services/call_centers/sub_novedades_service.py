@@ -1,126 +1,131 @@
 import pandas as pd
+import numpy as np
 import unicodedata
 import difflib
 import streamlit as st
-from datetime import datetime, date 
 
-def _normalize_name_set(series: pd.Series) -> pd.Series:
+def _normalize_name_tuple(series: pd.Series) -> pd.Series:
     if series.empty: return series
     STOP_WORDS = {'de', 'del', 'la', 'las', 'los', 'el', 'y', 'e', 'i'}
+    
     def normalize_string(name):
-        if not isinstance(name, str): return set()
+        if pd.isna(name) or str(name).lower() in ['nan', 'none', '']: 
+            return tuple()
+        name = str(name)
         name = ''.join(c for c in unicodedata.normalize('NFD', name.lower()) if unicodedata.category(c) != 'Mn')
-        tokens = name.split()
-        return {t for t in tokens if len(t) > 1 and t not in STOP_WORDS}
-    return series.apply(normalize_string)
+        return tuple(t for t in name.split() if len(t) > 1 and t not in STOP_WORDS)
+    
+    return series.astype(str).apply(normalize_string)
 
 def process_novedades_system(df_novedades: pd.DataFrame, df_llamadas: pd.DataFrame) -> dict:
     resultado = {
-        "df_detalle": pd.DataFrame(),
-        "df_agg_call": pd.DataFrame(),
-        "df_agg_tipo": pd.DataFrame(),
-        "df_compromisos": pd.DataFrame(),
-        "kpis": {"total": 0, "sin_asignar": 0, "top_tipo": "N/A"},
-        "error": None
+        "df_detalle": pd.DataFrame(), "df_agg_call": pd.DataFrame(), "df_agg_tipo": pd.DataFrame(),
+        "df_compromisos": pd.DataFrame(), "kpis": {"total": 0, "sin_asignar": 0, "top_tipo": "N/A"}, "error": None
     }
 
-    if df_novedades.empty or df_llamadas.empty:
-        resultado["error"] = "Faltan datos."
-        return resultado
+    if df_novedades.empty:
+        return {**resultado, "error": "No hay datos de novedades."}
 
-    # Limpieza
     df_novedades.columns = df_novedades.columns.str.strip()
-    df_llamadas.columns = df_llamadas.columns.str.strip()
+    if not df_llamadas.empty:
+        df_llamadas.columns = df_llamadas.columns.str.strip()
 
     col_usuario = 'Nombre_Usuario' if 'Nombre_Usuario' in df_novedades.columns else 'Usuario_Novedad'
     col_agente = 'Nombre_Call'
     col_cc = 'Call_Center'
+    col_tipo = 'Tipo_Novedad'
+    col_fecha_comp = 'Fecha_Compromiso'
 
-    if col_usuario not in df_novedades.columns: return {"error": "Falta columna Usuario", **resultado}
-    if col_agente not in df_llamadas.columns: return {"error": "Falta columna Agente", **resultado}
+    if col_usuario not in df_novedades.columns: 
+        return {**resultado, "error": f"Falta la columna '{col_usuario}'"}
 
     try:
-        # 1. Fuzzy Match
-        df_ref = df_llamadas[[col_agente, col_cc]].dropna().drop_duplicates()
-        df_ref['tokens'] = _normalize_name_set(df_ref[col_agente])
-        
-        agentes_ref = []
-        for row in df_ref.itertuples():
-            if row.tokens:
-                agentes_ref.append({'tokens': list(row.tokens), 'cc': row.Call_Center, 'len': len(row.tokens)})
+        usuarios_unicos = df_novedades[col_usuario].dropna().unique()
+        df_unicos_nov = pd.DataFrame({col_usuario: usuarios_unicos})
+        df_unicos_nov['tokens_temp'] = _normalize_name_tuple(df_unicos_nov[col_usuario])
 
-        def find_best_match(tokens_usuario_set):
-            if not tokens_usuario_set: return 'SIN ASIGNAR'
-            tokens_usuario = list(tokens_usuario_set)
+        agentes_ref = []
+        if not df_llamadas.empty and col_agente in df_llamadas.columns and col_cc in df_llamadas.columns:
+            df_ref = df_llamadas[[col_agente, col_cc]].dropna().drop_duplicates()
+            df_ref['tokens'] = _normalize_name_tuple(df_ref[col_agente])
+            agentes_ref = [{'tokens': list(r.tokens), 'cc': r.Call_Center, 'len': len(r.tokens)} for r in df_ref.itertuples() if r.tokens]
+
+        def find_best_match(tokens_usuario_tuple):
+            if not tokens_usuario_tuple or not agentes_ref: return 'SIN ASIGNAR'
             best_cc, best_score = 'SIN ASIGNAR', 0.0
+            
             for agente in agentes_ref:
-                tokens_agente, n_agente = agente['tokens'], agente['len']
-                suma_similitud = 0.0
-                for token_a in tokens_agente:
-                    max_sim = 0.0
-                    if token_a in tokens_usuario_set: max_sim = 1.0
-                    else:
-                        for token_u in tokens_usuario:
-                            sim = difflib.SequenceMatcher(None, token_a, token_u).ratio()
-                            if sim > max_sim: max_sim = sim
-                    if max_sim < 0.75: max_sim = 0.0
-                    suma_similitud += max_sim
-                score = suma_similitud / n_agente
+                suma_similitud = sum(
+                    1.0 if t_a in tokens_usuario_tuple else max((difflib.SequenceMatcher(None, t_a, t_u).ratio() for t_u in tokens_usuario_tuple), default=0.0)
+                    for t_a in agente['tokens']
+                )
+                score = suma_similitud / agente['len'] if agente['len'] > 0 else 0
                 if score >= 0.65: return agente['cc']
                 if score > best_score: best_score, best_cc = score, agente['cc']
+                
             return best_cc if best_score >= 0.60 else 'SIN ASIGNAR'
 
+        df_unicos_nov['Call_Center_Asignado'] = df_unicos_nov['tokens_temp'].apply(find_best_match)
+        
+        valid_ccs = {'CL1', 'CL2', 'CL3', 'CL4', 'CL5', 'CL6', 'CL7', 'CL8', 'CL9'}
+        df_unicos_nov['Call_Center_Asignado'] = df_unicos_nov['Call_Center_Asignado'].apply(lambda x: x if x in valid_ccs else 'SIN ASIGNAR')
+        
+        mapa_asignacion = dict(zip(df_unicos_nov[col_usuario], df_unicos_nov['Call_Center_Asignado']))
+        
         df_proc = df_novedades.copy()
-        df_proc['tokens_temp'] = _normalize_name_set(df_proc[col_usuario])
-        df_proc['Call_Center_Asignado'] = df_proc['tokens_temp'].apply(find_best_match)
+        df_proc['Call_Center_Asignado'] = df_proc[col_usuario].map(mapa_asignacion).fillna('SIN ASIGNAR')
+
+        # --- LÓGICA DE COMPROMISOS ---
+        df_compromisos = pd.DataFrame()
         
-        valid_ccs = ['CL1', 'CL2', 'CL3', 'CL4', 'CL5', 'CL6', 'CL7', 'CL8', 'CL9']
-        df_proc['Call_Center_Asignado'] = df_proc['Call_Center_Asignado'].apply(lambda x: x if x in valid_ccs else 'SIN ASIGNAR')
-
-
-        col_tipo = 'Tipo_Novedad' if 'Tipo_Novedad' in df_proc.columns else df_proc.columns[0]
-        col_fecha_comp = 'Fecha_Compromiso'
-        
-        mask_compromiso = df_proc[col_tipo].astype(str).str.contains("COMPROMISO", case=False, na=False)
-        df_comp = df_proc[mask_compromiso].copy()
-
-        if not df_comp.empty and col_fecha_comp in df_comp.columns:
-            df_comp[col_fecha_comp] = df_comp[col_fecha_comp].astype(str).str.strip()
-            df_comp['Fecha_Obj'] = pd.to_datetime(df_comp[col_fecha_comp], errors='coerce')
-            
-            hoy = pd.Timestamp.now().normalize()
-            inicio_mes_actual = hoy.replace(day=1)
-
-            def clasificar_acuerdo(fecha):
-                if pd.isna(fecha): return 'ACUERDOS SIN FECHA'
-                if fecha < inicio_mes_actual: return 'ACUERDOS SIN FECHA'
-                if fecha < hoy: return 'ACUERDOS VENCIDOS'
-                return 'ACUERDOS VIGENTES'
-
-            df_comp['Estado_Acuerdo'] = df_comp['Fecha_Obj'].apply(clasificar_acuerdo)
-            
-            # --- [MODIFICACIÓN] FILTRAR 'SIN ASIGNAR' ---
-            # Solo dejamos los registros que tienen un Call Center válido (CL1-CL9)
-            df_comp_clean = df_comp[df_comp['Call_Center_Asignado'] != 'SIN ASIGNAR'].copy()
-            
-            # Agrupamos solo los válidos
-            df_compromisos = df_comp_clean.groupby(['Call_Center_Asignado', 'Estado_Acuerdo']).size().reset_index(name='Cantidad')
+        if col_tipo not in df_proc.columns:
+            st.error(f"🔴 ALERTA: No existe la columna '{col_tipo}' en el archivo procesado.")
+        elif col_fecha_comp not in df_proc.columns:
+            st.error(f"🔴 ALERTA: No existe la columna '{col_fecha_comp}' en el archivo procesado.")
         else:
-            df_compromisos = pd.DataFrame()
+            df_proc['Tipo_Limpio'] = df_proc[col_tipo].astype(str).str.strip().str.upper()
+            
+            mask_compromiso = df_proc['Tipo_Limpio'].str.contains("COMPROMISO", na=False)
+            df_comp = df_proc[mask_compromiso].copy()
 
-        df_agg_call = df_proc[df_proc['Call_Center_Asignado'] != 'SIN ASIGNAR'].groupby('Call_Center_Asignado').size().reset_index(name='Cantidad')
-        df_agg_tipo = df_proc[df_proc['Call_Center_Asignado'] != 'SIN ASIGNAR'].groupby(['Call_Center_Asignado', col_tipo]).size().reset_index(name='Cantidad')
+            if not df_comp.empty:
+                hoy = pd.Timestamp.now().normalize()
+                inicio_mes_actual = hoy.replace(day=1)
+                
+                fechas_obj = pd.to_datetime(df_comp[col_fecha_comp], errors='coerce')
+                
+                condiciones = [
+                    fechas_obj.isna() | (fechas_obj < inicio_mes_actual),
+                    fechas_obj < hoy
+                ]
+                elecciones = ['ACUERDOS SIN FECHA', 'ACUERDOS VENCIDOS']
+                estados_acuerdo = np.select(condiciones, elecciones, default='ACUERDOS VIGENTES')
+                
+                df_comp['Estado_Acuerdo'] = estados_acuerdo
+                
+                # --- AQUÍ QUITAMOS LOS 'SIN ASIGNAR' ANTES DE GRAFICAR ---
+                df_comp_limpio = df_comp[df_comp['Call_Center_Asignado'] != 'SIN ASIGNAR']
+                
+                # Agrupamos solo los válidos
+                df_compromisos = df_comp_limpio.groupby(['Call_Center_Asignado', 'Estado_Acuerdo'], observed=False).size().reset_index(name='Cantidad')
 
-        resultado["df_detalle"] = df_proc.drop(columns=['tokens_temp'])
-        resultado["df_agg_call"] = df_agg_call
-        resultado["df_agg_tipo"] = df_agg_tipo
-        resultado["df_compromisos"] = df_compromisos
-        resultado["kpis"] = {
-            "total": len(df_proc), 
-            "sin_asignar": len(df_proc[df_proc['Call_Center_Asignado'] == 'SIN ASIGNAR']), 
-            "top_tipo": df_proc[col_tipo].mode()[0] if not df_proc.empty else "N/A"
-        }
+        # --- AGRUPACIONES FINALES ---
+        mask_asignados = df_proc['Call_Center_Asignado'] != 'SIN ASIGNAR'
+        df_agg_call = df_proc[mask_asignados].groupby('Call_Center_Asignado', observed=False).size().reset_index(name='Cantidad')
+        
+        df_agg_tipo = pd.DataFrame()
+        top_tipo = "N/A"
+        if col_tipo in df_proc.columns:
+            df_agg_tipo = df_proc[mask_asignados].groupby(['Call_Center_Asignado', col_tipo], observed=False).size().reset_index(name='Cantidad')
+            if not df_proc.empty:
+                top_tipo = df_proc[col_tipo].mode()[0]
+
+        resultado.update({
+            "df_detalle": df_proc, "df_agg_call": df_agg_call, "df_agg_tipo": df_agg_tipo, "df_compromisos": df_compromisos,
+            "kpis": {"total": len(df_proc), "sin_asignar": (~mask_asignados).sum(), "top_tipo": top_tipo}
+        })
         return resultado
     except Exception as e:
-        resultado["error"] = f"Error: {str(e)}"
+        import traceback
+        st.error(f"Error crítico en sistema de novedades: {str(e)} \n {traceback.format_exc()}")
         return resultado

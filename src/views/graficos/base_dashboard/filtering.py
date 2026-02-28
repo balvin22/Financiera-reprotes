@@ -6,31 +6,36 @@ import streamlit as st
 def apply_main_filters(df_cartera, df_novedades, df_llamadas, df_mensajeria, filters):
     """
     Aplica los filtros de la barra lateral.
-    RETORNA DOS VERSIONES DE CARTERA:
-    1. df_cartera_clasica: Lógica Antigua (Estricta por 'CALL_CENTER_FILTRO') -> Tabs 1-5.
-    2. df_cartera_tab6: Lógica Nueva (Inclusiva Zona O Apoyo) -> Tab 6.
+    Con lógica inteligente: Si el filtro está vacío, no se aplica (Muestra todo).
     """
     
-    # --- A. FILTROS COMUNES (Empresa, Regional, Franja, Zona Geográfica) ---
-    mask_common = (
-        df_cartera["Empresa"].isin(filters['empresa']) &
-        df_cartera["Regional_Cobro"].isin(filters['regional_cobro']) &
-        df_cartera["Franja_Cartera"].isin(filters['franja_cartera']) &
-        df_cartera["Zona"].isin(filters['Zona'])
-    )
+    # --- A. FILTROS COMUNES DINÁMICOS ---
+    mask_common = pd.Series(True, index=df_cartera.index)
     
-    # Base con filtros comunes ya aplicados
+    if filters.get('empresa'):
+        mask_common &= df_cartera["Empresa"].isin(filters['empresa'])
+        
+    if filters.get('regional_cobro'):
+        mask_common &= df_cartera["Regional_Cobro"].isin(filters['regional_cobro'])
+        
+    if filters.get('franja_cartera'):
+        mask_common &= df_cartera["Franja_Cartera"].isin(filters['franja_cartera'])
+        
+    if filters.get('Zona'):
+        mask_common &= df_cartera["Zona"].isin(filters['Zona'])
+        
+    # --- NUEVO FILTRO DE VIGENCIA APLICADO GLOBALMENTE ---
+    if filters.get('vigencia'):
+        mask_common &= df_cartera["Estado_Vigencia_Filtro"].isin(filters['vigencia'])
+    
     df_base = df_cartera[mask_common].copy()
     
     seleccion_cc = filters.get('call_center', [])
 
     # =========================================================================
-    # CAMINO 1: CARTERA CLÁSICA (Para Tabs 1, 2, 3, 4, 5)
-    # Lógica: Usamos la columna 'CALL_CENTER_FILTRO' que viene de tu lógica original.
-    # Esto asegura que los gráficos antiguos NO CAMBIEN.
+    # CAMINO 1: CARTERA CLÁSICA (Para Tabs 1-5)
     # =========================================================================
     if seleccion_cc:
-        # Filtro estricto: Solo si coincide con la etiqueta asignada originalmente
         mask_strict = df_base["CALL_CENTER_FILTRO"].isin(seleccion_cc)
         df_cartera_clasica = df_base[mask_strict].copy()
     else:
@@ -38,14 +43,11 @@ def apply_main_filters(df_cartera, df_novedades, df_llamadas, df_mensajeria, fil
 
     # =========================================================================
     # CAMINO 2: CARTERA TAB 6 (Para el Módulo Call Center)
-    # Lógica: Inclusiva. Buscamos en 'Zona' O en 'Call_Center_Apoyo'.
-    # Esto asegura que el Tab 6 reciba las 148 cuentas (114 + 34).
     # =========================================================================
     if seleccion_cc:
         col_zona = df_base["Zona"].astype(str).str.strip().str.upper()
         col_apoyo = df_base.get("Call_Center_Apoyo", pd.Series()).astype(str).str.strip().str.upper()
         
-        # Condición OR: ¿Está en Zona O está en Apoyo?
         mask_inclusive = (col_zona.isin(seleccion_cc) | col_apoyo.isin(seleccion_cc))
         df_cartera_tab6 = df_base[mask_inclusive].copy()
     else:
@@ -61,7 +63,6 @@ def apply_main_filters(df_cartera, df_novedades, df_llamadas, df_mensajeria, fil
         df_cartera_clasica = df_cartera_clasica[df_cartera_clasica["Cantidad_Novedades"] == 0]
         df_cartera_tab6 = df_cartera_tab6[df_cartera_tab6["Cantidad_Novedades"] == 0]
 
-    # Para el DF de novedades, usamos las cédulas del Tab 6 (que es el más completo) para no perder datos
     cedulas_filtradas = df_cartera_tab6["Cedula_Cliente"].unique()
     
     if not df_novedades.empty:
@@ -85,16 +86,16 @@ def apply_main_filters(df_cartera, df_novedades, df_llamadas, df_mensajeria, fil
         df_m['Call_Center_Limpio'] = df_m['Call_Center'].astype(str).str.replace(" ", "").str.strip().str.upper()
         df_mensajeria_filtrada = df_m[df_m['Call_Center_Limpio'].isin(seleccion_cc)] if seleccion_cc else df_m
     
-    # IMPORTANTE: Retornamos 5 valores, separando la cartera en dos
     return df_cartera_clasica, df_cartera_tab6, df_novedades_filtrada, df_llamadas_filtrada, df_mensajeria_filtrada
 
 
 def add_call_center_column(df):
     """
-    Mantenemos tu lógica ORIGINAL e INTACTA para que los Tabs 1-5 no cambien.
+    Agrega la lógica original de Call Center y crea la nueva columna de Vigencia Global.
     """
     df_copy = df.copy()
 
+    # --- LÓGICA DE CALL CENTER ---
     if 'Zona' not in df_copy.columns:
         df_copy['Zona'] = ''
     else:
@@ -105,7 +106,6 @@ def add_call_center_column(df):
     else:
         df_copy['Call_Center_Apoyo'] = df_copy['Call_Center_Apoyo'].astype(str).str.replace(" ", "").str.strip().str.upper().fillna('')
 
-    # --- TU LÓGICA ANTIGUA ---
     conditions = [
         df_copy['Zona'].isin(['CL1', 'CL2', 'CL3', 'CL4']),
         df_copy['Call_Center_Apoyo'].isin(['CL5', 'CL6', 'CL7', 'CL8', 'CL9'])
@@ -116,5 +116,20 @@ def add_call_center_column(df):
     ]
     
     df_copy['CALL_CENTER_FILTRO'] = np.select(conditions, choices, default='SIN CALL CENTER')
+    
+    # --- NUEVA LÓGICA: ESTADO DE VIGENCIA GLOBAL ---
+    # Convertimos los datos crudos a las 3 opciones exactas
+    if 'Fecha_Cuota_Vigente' in df_copy.columns:
+        fechas = pd.to_datetime(df_copy['Fecha_Cuota_Vigente'], errors='coerce')
+        texto_vigencia = df_copy['Fecha_Cuota_Vigente'].astype(str).str.upper().str.strip()
+        
+        condiciones_vigencia = [
+            fechas.notna(),  # Si es una fecha válida, cuenta como "Vigentes"
+            texto_vigencia.str.contains('ANTICIPADO', na=False) # Si dice anticipado
+        ]
+        # Si no es fecha ni anticipado (ej. VIGENCIA EXPIRADA), es "Vencidos"
+        df_copy['Estado_Vigencia_Filtro'] = np.select(condiciones_vigencia, ['Vigentes', 'Anticipados'], default='Vencidos')
+    else:
+        df_copy['Estado_Vigencia_Filtro'] = 'Sin Dato'
     
     return df_copy

@@ -1,9 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
+import tempfile
 
-# Carpeta local en tu proyecto de escritorio
-DATA_DIR = "data_bin"
+# 1. DIRECTORIO TEMPORAL DEL SISTEMA (Seguro para PyInstaller)
+TEMP_BASE = tempfile.gettempdir()
+DATA_DIR = os.path.join(TEMP_BASE, "app_dashboard_data")
 
 def get_local_path(name):
     return os.path.join(DATA_DIR, f"{name}.parquet")
@@ -25,9 +27,8 @@ def save_to_disk(df_cartera, df_novedades, df_llamadas, df_mensajeria, df_fnz):
         if df is not None and not df.empty:
             df.to_parquet(get_local_path(name), index=False, engine='pyarrow')
 
-@st.cache_data(show_spinner="Leyendo datos desde disco...")
 def load_from_local_disk():
-    """Carga los datos previamente procesados del disco duro"""
+    """Carga los datos previamente procesados del disco duro (Parquet ultra rápido)"""
     try:
         if not os.path.exists(get_local_path("cartera")):
             return None, None, None, None, None
@@ -47,7 +48,7 @@ def load_from_local_disk():
 
 def load_and_process_data(uploaded_file):
     """
-    PROCESAMIENTO COMPLETO CON BLINDAJE ANTI-ERRORES.
+    PROCESAMIENTO COMPLETO CON BLINDAJE ANTI-ERRORES Y OPTIMIZACIÓN DE MEMORIA.
     """
     cols_cartera = [
         'Empresa', 'Credito', 'Fecha_Desembolso', 'Factura_Venta', 'Fecha_Facturada',
@@ -176,13 +177,13 @@ def load_and_process_data(uploaded_file):
             'Telefono_Codeudor1', 'Telefono_Codeudor2', 'Celular_Vendedor',
             'Cedula_Cliente', 'Credito', 'Celular', 'Codigo_Vendedor', 
             'Cedula_Vendedor', 'Codigo_Centro_Costos', 'Factura_Venta',
-            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente' # <--- SE SALVAN LOS TEXTOS AQUÍ
+            'Fecha_Cuota_Vigente', 'Valor_Cuota_Vigente'
         ]
         for col in cols_a_texto:
             if col in df_cartera.columns:
                 df_cartera[col] = df_cartera[col].astype(str).replace(['None', 'nan', 'NaN', 'nan.0'], '').str.replace(r'\.0$', '', regex=True)
 
-        # B. Dinero y Cantidades (Quitamos Valor_Cuota_Vigente de aquí)
+        # B. Dinero y Cantidades
         cols_a_numero = [
             'Saldo_Interes_Corriente', 'Saldo_Capital', 'Saldo_Avales', 
             'Valor_Desembolso', 'Total_Cuotas', 'Valor_Cuota', 
@@ -211,9 +212,29 @@ def load_and_process_data(uploaded_file):
         if 'Nombre_Call_Center' in df_cartera.columns:
             df_cartera['Nombre_Call_Center'] = df_cartera['Nombre_Call_Center'].fillna('SIN CALL').astype(str)
 
+        # E. OPTIMIZACIÓN EXTREMA DE MEMORIA (Categorías para textos repetitivos)
+        cols_categorias_cartera = ["Empresa", "Nombre_Ciudad", "Franja_Meta", "Rodamiento", "Regional_Cobro", "Zona_Cobro", "Zona", "Nombre_Call_Center"]
+        for col in cols_categorias_cartera:
+            if col in df_cartera.columns:
+                df_cartera[col] = df_cartera[col].astype('category')
+
+        if not df_llamadas.empty:
+            cols_categorias_llamadas = ["Estado_Llamada", "Destino_Llamada", "Call_Center", "Nombre_Call"]
+            for col in cols_categorias_llamadas:
+                if col in df_llamadas.columns:
+                    df_llamadas[col] = df_llamadas[col].astype('category')
+                    
+        if not df_mensajeria.empty:
+            cols_categorias_msj = ["Estado", "Estado_Mensaje", "Estado_Respuesta_Entrante", "Call_Center"]
+            for col in cols_categorias_msj:
+                if col in df_mensajeria.columns:
+                    df_mensajeria[col] = df_mensajeria[col].astype('category')
+
         # 6. GUARDADO Y RETORNO
         save_to_disk(df_cartera, df_novedades, df_llamadas, df_mensajeria, df_fnz)
-        st.cache_data.clear()
+        
+        # Opcional: limpiar caché si tenías funciones cacheadas previamente
+        # st.cache_data.clear() 
         
         return df_cartera, df_novedades, df_llamadas, df_mensajeria, df_fnz, alerts
 
